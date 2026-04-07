@@ -154,3 +154,145 @@ export async function addScore(req: AuthRequest, res: Response): Promise<void> {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export async function listReportCards(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const query: any = {};
+    
+    if (req.user.role === "student") {
+      const student = await Student.findOne({ studentUserId: req.user._id });
+      if (!student) {
+        res.json({ reportCards: [] });
+        return;
+      }
+      query.studentId = student._id;
+    } else if (req.user.role === "parent") {
+      const children = await Student.find({ parentUserId: req.user._id }).select("_id");
+      query.studentId = { $in: children.map((c) => c._id) };
+    } else if (req.user.role === "teacher") {
+      const teacherClass = getMetaValue(req.user.meta, "class");
+      if (teacherClass) {
+        const students = await Student.find({ className: teacherClass }).select("_id");
+        query.studentId = { $in: students.map((s) => s._id) };
+      }
+    }
+
+    const scores = await Score.find(query)
+      .populate("studentId", "name roll className")
+      .sort({ date: -1 });
+
+    res.json({ reportCards: scores });
+  } catch (err) {
+    console.error("ListReportCards error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function generateReportCard(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user || req.user.role !== "teacher") {
+      res.status(403).json({ error: "Only teachers can generate report cards" });
+      return;
+    }
+
+    const { studentId } = req.params;
+    const student = await Student.findById(studentId);
+    
+    if (!student) {
+      res.status(404).json({ error: "Student not found" });
+      return;
+    }
+
+    const teacherClass = getMetaValue(req.user.meta, "class");
+    if (student.className !== teacherClass) {
+      res.status(403).json({ error: "Student not in your class" });
+      return;
+    }
+
+    const scores = await Score.find({ studentId });
+    const reportCard = {
+      studentId,
+      studentName: student.name,
+      className: student.className,
+      roll: student.roll,
+      generatedAt: new Date(),
+      scores,
+      totalSubjects: new Set(scores.map(s => s.subject)).size,
+      averageScore: scores.length > 0 
+        ? scores.reduce((sum, s) => sum + s.scorePercent, 0) / scores.length 
+        : 0,
+    };
+
+    res.json({ reportCard });
+  } catch (err) {
+    console.error("GenerateReportCard error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function getStudentReportCard(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const { studentId } = req.params;
+    const student = await Student.findById(studentId);
+    
+    if (!student) {
+      res.status(404).json({ error: "Student not found" });
+      return;
+    }
+
+    // Access control
+    if (req.user.role === "student") {
+      const studentUser = await Student.findOne({ studentUserId: req.user._id });
+      if (!studentUser || studentUser._id.toString() !== studentId) {
+        res.status(403).json({ error: "Cannot access other student's report card" });
+        return;
+      }
+    } else if (req.user.role === "parent") {
+      const parent = await Student.findOne({ 
+        parentUserId: req.user._id, 
+        _id: studentId 
+      });
+      if (!parent) {
+        res.status(403).json({ error: "Not parent of this student" });
+        return;
+      }
+    } else if (req.user.role === "teacher") {
+      const teacherClass = getMetaValue(req.user.meta, "class");
+      if (student.className !== teacherClass) {
+        res.status(403).json({ error: "Student not in your class" });
+        return;
+      }
+    }
+
+    const scores = await Score.find({ studentId })
+      .sort({ date: -1 });
+
+    const reportCard = {
+      studentId,
+      studentName: student.name,
+      className: student.className,
+      roll: student.roll,
+      parentName: student.parentName,
+      scores,
+      totalSubjects: new Set(scores.map(s => s.subject)).size,
+      averageScore: scores.length > 0 
+        ? scores.reduce((sum, s) => sum + s.scorePercent, 0) / scores.length 
+        : 0,
+    };
+
+    res.json({ reportCard });
+  } catch (err) {
+    console.error("GetStudentReportCard error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}

@@ -25,10 +25,20 @@ const SubmitQuizSchema = z.object({
 // GET /api/quizzes?className=X → list quizzes for a class
 export async function listQuizzes(req: AuthRequest, res: Response): Promise<void> {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
     const user = req.user;
     let filter: any = {};
     // meta can be a Mongoose Map or plain object
-    const metaClass = user.meta?.get?.("class") ?? user.meta?.class;
+    let metaClass: any;
+    if (user.meta instanceof Map) {
+      metaClass = user.meta.get("class");
+    } else if (user.meta) {
+      metaClass = (user.meta as any).class;
+    }
     if (user.role === "student" && metaClass) {
       filter.className = metaClass;
     } else if (req.query.className) {
@@ -45,6 +55,11 @@ export async function listQuizzes(req: AuthRequest, res: Response): Promise<void
 // POST /api/quizzes → teacher creates a quiz
 export async function createQuiz(req: AuthRequest, res: Response): Promise<void> {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
     const body = CreateQuizSchema.parse(req.body);
     const quiz = await Quiz.create({
       ...body,
@@ -65,6 +80,11 @@ export async function createQuiz(req: AuthRequest, res: Response): Promise<void>
 // GET /api/quizzes/:id → get a single quiz (strip correct answers for students)
 export async function getQuiz(req: AuthRequest, res: Response): Promise<void> {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
     const quiz = await Quiz.findById(req.params.id);
     if (!quiz) {
       res.status(404).json({ error: "Quiz not found" });
@@ -86,6 +106,11 @@ export async function getQuiz(req: AuthRequest, res: Response): Promise<void> {
 // POST /api/quizzes/:id/submit → student submits quiz
 export async function submitQuiz(req: AuthRequest, res: Response): Promise<void> {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
     const quiz = await Quiz.findById(req.params.id);
     if (!quiz) {
       res.status(404).json({ error: "Quiz not found" });

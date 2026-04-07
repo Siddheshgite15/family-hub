@@ -127,7 +127,7 @@ const enquirySchema = new Schema<IEnquiry>(
  * 🚀 Indexes for performance
  */
 enquirySchema.index({ status: 1, createdAt: -1 });
-enquirySchema.index({ priority: 1 });
+// priority index already defined in field with index: true
 
 /**
  * 🧠 Pre-save hook (auto priority detection - optional AI logic)

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <style>
+      .icon-bg { fill: #FF8C42; }
+      .icon-fg { fill: white; }
+    </style>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" class="icon-bg"/>
+  
+  <!-- Graduation cap -->
+  <g class="icon-fg">
+    <!-- Cap base -->
+    <ellipse cx="50" cy="40" rx="18" ry="6"/>
+    
+    <!-- Cap top -->
+    <path d="M 50 35 L 65 42 L 65 45 L 50 38 L 35 45 L 35 42 Z" fill="white"/>
+    
+    <!-- Tassel -->
+    <rect x="48" y="37" width="4" height="8" fill="white"/>
+    
+    <!-- Book/scroll -->
+    <rect x="32" y="50" width="36" height="24" rx="2" stroke="white" stroke-width="2" fill="none"/>
+    <path d="M 42 54 Q 50 60 58 54" stroke="white" stroke-width="1.5" fill="none"/>
+    <path d="M 42 62 Q 50 62 58 62" stroke="white" stroke-width="1.5" fill="none"/>
+  </g>
+</svg>

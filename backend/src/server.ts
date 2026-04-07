@@ -26,9 +26,11 @@ const PORT = 9000;
 // Middleware
 app.use(cors({
   origin: [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://10.204.104.102:5173",
+    "http://10.28.232.219:5173",
     process.env.FRONTEND_URL || "http://localhost:5173",
-    "http://10.204.104.102:5173",  // Also allow network IP
-    "http://127.0.0.1:5173",       // Also allow loopback
   ],
   credentials: true,
 }));
@@ -94,10 +96,15 @@ async function start() {
     await connectDB();
     console.log("✓ Connected to MongoDB\n");
 
-    const server = app.listen(Number(PORT), "0.0.0.0", () => {
+    console.log("🔧 Creating Express server...");
+    const server = app.listen(Number(PORT), () => {
       console.log(`\n✅ Server running at http://localhost:${PORT}`);
+      console.log(`🌐 Also accessible at http://10.28.232.219:${PORT}`);
       console.log(`🔗 CORS enabled for ${process.env.FRONTEND_URL || "http://localhost:5173"}\n`);
+      console.log("📡 Server is ready to accept requests");
     });
+
+    console.log("📌 Server instance created, setting up event handlers...");
 
     // Log server events
     server.on("clientError", (err: any) => {
@@ -109,6 +116,14 @@ async function start() {
       socket.on("data", (data) => {
         console.log("📨 Data received on socket");
       });
+    });
+
+    server.on("listening", () => {
+      console.log("🎧 Server is now listening for connections");
+    });
+
+    server.on("error", (err: any) => {
+      console.error("❌ Server error:", err);
     });
 
   } catch (err) {
