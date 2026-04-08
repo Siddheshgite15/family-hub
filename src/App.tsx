@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -9,40 +9,50 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-// Public Pages
-import Index from "@/pages/Index";
-import Login from "@/pages/Login";
-import Campus from "@/pages/Campus";
-import Activities from "@/pages/Activities";
-import Admissions from "@/pages/Admissions";
-import NotFound from "@/pages/NotFound";
+// Loading component for lazy boundaries
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center w-full h-screen">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
 
-// Teacher
-import TeacherLayout from "@/components/TeacherLayout";
-import TeacherDashboard from "@/pages/teacher/TeacherDashboard";
-import TeacherAttendance from "@/pages/teacher/TeacherAttendance";
-import TeacherMeetings from "@/pages/teacher/TeacherMeetings";
-import TeacherProgress from "@/pages/teacher/TeacherProgress";
-import TeacherLMS from "@/pages/teacher/TeacherLMS";
-import TeacherEnroll from "@/pages/teacher/TeacherEnroll";
-import TeacherHomework from "@/pages/teacher/TeacherHomework";
-import TeacherAnalytics from "@/pages/teacher/TeacherAnalytics";
+// Public Pages - Lazy loaded
+const Index = lazy(() => import("@/pages/Index"));
+const Login = lazy(() => import("@/pages/Login"));
+const Campus = lazy(() => import("@/pages/Campus"));
+const Activities = lazy(() => import("@/pages/Activities"));
+const Admissions = lazy(() => import("@/pages/Admissions"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
-// Parent
-import ParentLayout from "@/components/ParentLayout";
-import ParentDashboard from "@/pages/parent/ParentDashboard";
-import ParentProgress from "@/pages/parent/ParentProgress";
-import ParentHomework from "@/pages/parent/ParentHomework";
+// Teacher - Lazy loaded
+const TeacherLayout = lazy(() => import("@/components/TeacherLayout"));
+const TeacherDashboard = lazy(() => import("@/pages/teacher/TeacherDashboard"));
+const TeacherAttendance = lazy(() => import("@/pages/teacher/TeacherAttendance"));
+const TeacherMeetings = lazy(() => import("@/pages/teacher/TeacherMeetings"));
+const TeacherProgress = lazy(() => import("@/pages/teacher/TeacherProgress"));
+const TeacherLMS = lazy(() => import("@/pages/teacher/TeacherLMS"));
+const TeacherEnroll = lazy(() => import("@/pages/teacher/TeacherEnroll"));
+const TeacherHomework = lazy(() => import("@/pages/teacher/TeacherHomework"));
+const TeacherAnalytics = lazy(() => import("@/pages/teacher/TeacherAnalytics"));
 
-// Student
-import StudentLayout from "@/components/StudentLayout";
-import StudentDashboard from "@/pages/student/StudentDashboard";
-import StudentQuizzes from "@/pages/student/StudentQuizzes";
-import StudentScores from "@/pages/student/StudentScores";
+// Parent - Lazy loaded
+const ParentLayout = lazy(() => import("@/components/ParentLayout"));
+const ParentDashboard = lazy(() => import("@/pages/parent/ParentDashboard"));
+const ParentProgress = lazy(() => import("@/pages/parent/ParentProgress"));
+const ParentHomework = lazy(() => import("@/pages/parent/ParentHomework"));
 
-// Admin
-import AdminLayout from "@/components/AdminLayout";
-import AdminDashboard from "@/pages/admin/AdminDashboard";
+// Student - Lazy loaded
+const StudentLayout = lazy(() => import("@/components/StudentLayout"));
+const StudentDashboard = lazy(() => import("@/pages/student/StudentDashboard"));
+const StudentQuizzes = lazy(() => import("@/pages/student/StudentQuizzes"));
+const StudentScores = lazy(() => import("@/pages/student/StudentScores"));
+
+// Admin - Lazy loaded
+const AdminLayout = lazy(() => import("@/components/AdminLayout"));
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,45 +81,45 @@ function App() {
             <ScrollToTop />
             <Routes>
               {/* PUBLIC */}
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/campus" element={<Campus />} />
-              <Route path="/activities" element={<Activities />} />
-              <Route path="/admissions" element={<Admissions />} />
+              <Route path="/" element={<Suspense fallback={<LoadingSpinner />}><Index /></Suspense>} />
+              <Route path="/login" element={<Suspense fallback={<LoadingSpinner />}><Login /></Suspense>} />
+              <Route path="/campus" element={<Suspense fallback={<LoadingSpinner />}><Campus /></Suspense>} />
+              <Route path="/activities" element={<Suspense fallback={<LoadingSpinner />}><Activities /></Suspense>} />
+              <Route path="/admissions" element={<Suspense fallback={<LoadingSpinner />}><Admissions /></Suspense>} />
 
               {/* TEACHER */}
-              <Route path="/teacher" element={<ProtectedRoute allowedRole="teacher"><TeacherLayout /></ProtectedRoute>}>
-                <Route index element={<TeacherDashboard />} />
-                <Route path="enroll" element={<TeacherEnroll />} />
-                <Route path="attendance" element={<TeacherAttendance />} />
-                <Route path="homework" element={<TeacherHomework />} />
-                <Route path="progress" element={<TeacherProgress />} />
-                <Route path="analytics" element={<TeacherAnalytics />} />
-                <Route path="meetings" element={<TeacherMeetings />} />
-                <Route path="lms" element={<TeacherLMS />} />
+              <Route path="/teacher" element={<ProtectedRoute allowedRole="teacher"><Suspense fallback={<LoadingSpinner />}><TeacherLayout /></Suspense></ProtectedRoute>}>
+                <Route index element={<Suspense fallback={<LoadingSpinner />}><TeacherDashboard /></Suspense>} />
+                <Route path="enroll" element={<Suspense fallback={<LoadingSpinner />}><TeacherEnroll /></Suspense>} />
+                <Route path="attendance" element={<Suspense fallback={<LoadingSpinner />}><TeacherAttendance /></Suspense>} />
+                <Route path="homework" element={<Suspense fallback={<LoadingSpinner />}><TeacherHomework /></Suspense>} />
+                <Route path="progress" element={<Suspense fallback={<LoadingSpinner />}><TeacherProgress /></Suspense>} />
+                <Route path="analytics" element={<Suspense fallback={<LoadingSpinner />}><TeacherAnalytics /></Suspense>} />
+                <Route path="meetings" element={<Suspense fallback={<LoadingSpinner />}><TeacherMeetings /></Suspense>} />
+                <Route path="lms" element={<Suspense fallback={<LoadingSpinner />}><TeacherLMS /></Suspense>} />
               </Route>
 
               {/* PARENT */}
-              <Route path="/parent" element={<ProtectedRoute allowedRole="parent"><ParentLayout /></ProtectedRoute>}>
-                <Route index element={<ParentDashboard />} />
-                <Route path="progress" element={<ParentProgress />} />
-                <Route path="homework" element={<ParentHomework />} />
+              <Route path="/parent" element={<ProtectedRoute allowedRole="parent"><Suspense fallback={<LoadingSpinner />}><ParentLayout /></Suspense></ProtectedRoute>}>
+                <Route index element={<Suspense fallback={<LoadingSpinner />}><ParentDashboard /></Suspense>} />
+                <Route path="progress" element={<Suspense fallback={<LoadingSpinner />}><ParentProgress /></Suspense>} />
+                <Route path="homework" element={<Suspense fallback={<LoadingSpinner />}><ParentHomework /></Suspense>} />
               </Route>
 
               {/* STUDENT */}
-              <Route path="/student" element={<ProtectedRoute allowedRole="student"><StudentLayout /></ProtectedRoute>}>
-                <Route index element={<StudentDashboard />} />
-                <Route path="quizzes" element={<StudentQuizzes />} />
-                <Route path="scores" element={<StudentScores />} />
+              <Route path="/student" element={<ProtectedRoute allowedRole="student"><Suspense fallback={<LoadingSpinner />}><StudentLayout /></Suspense></ProtectedRoute>}>
+                <Route index element={<Suspense fallback={<LoadingSpinner />}><StudentDashboard /></Suspense>} />
+                <Route path="quizzes" element={<Suspense fallback={<LoadingSpinner />}><StudentQuizzes /></Suspense>} />
+                <Route path="scores" element={<Suspense fallback={<LoadingSpinner />}><StudentScores /></Suspense>} />
               </Route>
 
               {/* ADMIN */}
-              <Route path="/admin" element={<ProtectedRoute allowedRole="admin"><AdminLayout /></ProtectedRoute>}>
-                <Route index element={<AdminDashboard />} />
+              <Route path="/admin" element={<ProtectedRoute allowedRole="admin"><Suspense fallback={<LoadingSpinner />}><AdminLayout /></Suspense></ProtectedRoute>}>
+                <Route index element={<Suspense fallback={<LoadingSpinner />}><AdminDashboard /></Suspense>} />
               </Route>
 
               {/* FALLBACK */}
-              <Route path="/404" element={<NotFound />} />
+              <Route path="/404" element={<Suspense fallback={<LoadingSpinner />}><NotFound /></Suspense>} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
           </BrowserRouter>
