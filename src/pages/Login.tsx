@@ -3,140 +3,200 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { GraduationCap, LogIn } from "lucide-react";
+import {
+  GraduationCap, LogIn, BookOpen, Users,
+  UserCircle2, Settings2, Eye, EyeOff, ArrowLeft,
+} from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
-const roleTabs: { role: UserRole; label: string; emoji: string }[] = [
-  { role: 'teacher', label: 'शिक्षक', emoji: '👨‍🏫' },
-  { role: 'parent', label: 'पालक', emoji: '👪' },
-  { role: 'student', label: 'विद्यार्थी', emoji: '🎒' },
-  { role: 'admin', label: 'व्यवस्थापक', emoji: '⚙️' },
+const roles: { role: UserRole; label: string; icon: React.ElementType; grad: string }[] = [
+  { role: 'teacher',  label: 'शिक्षक',     icon: BookOpen,    grad: 'from-blue-500 to-indigo-600' },
+  { role: 'parent',   label: 'पालक',       icon: Users,       grad: 'from-emerald-500 to-teal-600' },
+  { role: 'student',  label: 'विद्यार्थी', icon: UserCircle2, grad: 'from-violet-500 to-purple-600' },
+  { role: 'admin',    label: 'व्यवस्थापक', icon: Settings2,   grad: 'from-slate-500 to-slate-700' },
 ];
 
 export default function Login() {
   const [searchParams] = useSearchParams();
   const defaultRole = (searchParams.get("role") as UserRole) || "teacher";
 
-  const [role, setRole] = useState<UserRole>(defaultRole);
-  const [email, setEmail] = useState("");
+  const [role, setRole]         = useState<UserRole>(defaultRole);
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [showPw, setShowPw]     = useState(false);
 
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const { login }  = useAuth();
+  const navigate   = useNavigate();
+  const activeRole = roles.find(r => r.role === role)!;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     const success = await login(email, password, role);
     setLoading(false);
-
     if (success) {
       toast.success("यशस्वीरित्या लॉगिन झाले!");
-      const redirectMap: Record<UserRole, string> = {
-        teacher: '/teacher',
-        parent: '/parent',
-        student: '/student',
-        admin: '/admin',
+      const map: Record<UserRole, string> = {
+        teacher: '/teacher', parent: '/parent', student: '/student', admin: '/admin',
       };
-      navigate(redirectMap[role]);
+      navigate(map[role]);
     } else {
       toast.error("चुकीचा ईमेल किंवा पासवर्ड");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
-      >
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-              <GraduationCap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                वैनतेय प्राथमिक विद्या मंदिर
-              </h1>
-              <p className="text-xs text-muted-foreground mt-1">
-                शालेय पोर्टलमध्ये लॉगिन करा
-              </p>
-            </div>
-          </Link>
-        </div>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50 to-slate-100 px-4 py-10">
 
-        <div className="bg-card border border-border/60 rounded-2xl shadow-sm p-7 backdrop-blur">
-          {/* Role Toggle */}
-          <div className="grid grid-cols-4 gap-1.5 mb-6">
-            {roleTabs.map((tab) => (
-              <button
-                key={tab.role}
-                type="button"
-                onClick={() => setRole(tab.role)}
-                className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl text-xs font-medium transition-all ${
-                  role === tab.role
-                    ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
-                    : "text-muted-foreground hover:bg-muted border border-transparent"
-                }`}
-              >
-                <span className="text-base">{tab.emoji}</span>
-                {tab.label}
-              </button>
-            ))}
+      {/* ── Floating orbs (light palette) ── */}
+      <div className="orb w-[600px] h-[600px] bg-indigo-200/50 top-[-200px] left-[-150px] animate-float-slow" />
+      <div className="orb w-[450px] h-[450px] bg-violet-200/35 bottom-[-150px] right-[-120px] animate-float-medium" style={{ animationDelay: '1.8s' }} />
+      <div className="orb w-[250px] h-[250px] bg-blue-200/30 top-[35%] right-[5%] animate-drift" style={{ animationDelay: '0.9s' }} />
+      <div className="orb w-[180px] h-[180px] bg-indigo-100/50 bottom-[20%] left-[8%] animate-float-fast" style={{ animationDelay: '2.5s' }} />
+
+      {/* ── Subtle dot texture ── */}
+      <div className="absolute inset-0" style={{
+        backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(99,102,241,0.08) 1px, transparent 0)',
+        backgroundSize: '32px 32px',
+      }} />
+
+      {/* ── Card ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative z-10 w-full max-w-[420px]"
+      >
+        {/* Dynamic thin top-bar matching active role */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={role}
+            className={`h-1 w-full rounded-t-3xl bg-gradient-to-r ${activeRole.grad}`}
+            initial={{ scaleX: 0.6, opacity: 0 }}
+            animate={{ scaleX: 1, opacity: 1 }}
+            exit={{ scaleX: 0.6, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          />
+        </AnimatePresence>
+
+        <div className="bg-white/90 backdrop-blur-xl rounded-b-3xl rounded-tr-3xl p-8 shadow-xl shadow-indigo-100/80 border border-white/80">
+
+          {/* Logo + school name */}
+          <div className="text-center mb-8">
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${activeRole.grad} flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200/50 transition-all duration-500`}>
+              <GraduationCap className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-xl font-extrabold text-slate-800 leading-snug">
+              वैनतेय प्राथमिक विद्या मंदिर
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">पोर्टलमध्ये आपले स्वागत आहे</p>
           </div>
 
+          {/* Role pills */}
+          <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl mb-7">
+            {roles.map((r) => {
+              const Icon = r.icon;
+              const active = role === r.role;
+              return (
+                <button
+                  key={r.role}
+                  type="button"
+                  onClick={() => setRole(r.role)}
+                  className={`relative flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl text-[11px] font-semibold transition-all duration-250 ${
+                    active ? 'text-white' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="active-pill"
+                      className={`absolute inset-0 rounded-xl bg-gradient-to-br ${r.grad} opacity-90`}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  <Icon className="w-4 h-4 relative z-10" />
+                  <span className="relative z-10">{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">ईमेल</Label>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">
+                ईमेल पत्ता
+              </label>
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="h-11"
+                className="h-11 rounded-xl bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-indigo-100 transition-all duration-200"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">पासवर्ड</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="h-11"
-              />
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
+                  पासवर्ड
+                </label>
+                <button type="button" className="text-[11px] text-slate-400 hover:text-indigo-600 transition-colors">
+                  विसरलात?
+                </button>
+              </div>
+              <div className="relative">
+                <Input
+                  type={showPw ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="h-11 rounded-xl bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-indigo-100 transition-all duration-200 pr-11"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 rounded-xl gap-2" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading}
+              className={`w-full h-11 rounded-xl gap-2 text-sm font-bold shadow-lg border-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl bg-gradient-to-r ${activeRole.grad} mt-2`}
+            >
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   लॉगिन होत आहे...
                 </span>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" /> लॉगिन करा
+                  <LogIn className="w-4 h-4" />
+                  {activeRole.label} म्हणून लॉगिन
                 </>
               )}
             </Button>
           </form>
-        </div>
 
-        <p className="text-center mt-6 text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-primary transition">
-            ← मुख्यपृष्ठावर परत जा
-          </Link>
-        </p>
+          {/* Back link */}
+          <div className="mt-6 text-center">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors duration-200"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              मुख्यपृष्ठावर परत जा
+            </Link>
+          </div>
+        </div>
       </motion.div>
     </div>
   );

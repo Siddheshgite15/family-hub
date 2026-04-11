@@ -25,6 +25,7 @@ const Login = lazy(() => import("@/pages/Login"));
 const Campus = lazy(() => import("@/pages/Campus"));
 const Activities = lazy(() => import("@/pages/Activities"));
 const Admissions = lazy(() => import("@/pages/Admissions"));
+const About = lazy(() => import("@/pages/About"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Teacher - Lazy loaded
@@ -86,6 +87,7 @@ function App() {
               <Route path="/campus" element={<Suspense fallback={<LoadingSpinner />}><Campus /></Suspense>} />
               <Route path="/activities" element={<Suspense fallback={<LoadingSpinner />}><Activities /></Suspense>} />
               <Route path="/admissions" element={<Suspense fallback={<LoadingSpinner />}><Admissions /></Suspense>} />
+              <Route path="/about" element={<Suspense fallback={<LoadingSpinner />}><About /></Suspense>} />
 
               {/* TEACHER */}
               <Route path="/teacher" element={<ProtectedRoute allowedRole="teacher"><Suspense fallback={<LoadingSpinner />}><TeacherLayout /></Suspense></ProtectedRoute>}>

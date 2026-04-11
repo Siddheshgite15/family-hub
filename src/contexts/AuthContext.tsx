@@ -37,10 +37,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const DEMO_CREDENTIALS: Record<string, { password: string; role: UserRole }> = {
-  'teacher@vainateya.edu': { password: 'teacher123', role: 'teacher' },
-  'parent@vainateya.edu': { password: 'parent123', role: 'parent' },
-  'student@vainateya.edu': { password: 'student123', role: 'student' },
-  'admin@vainateya.edu': { password: 'admin123', role: 'admin' },
+  // Generic demo accounts
+  'teacher@vainateya.edu':  { password: 'teacher123',  role: 'teacher' },
+  'parent@vainateya.edu':   { password: 'parent123',   role: 'parent'  },
+  'student@vainateya.edu':  { password: 'student123',  role: 'student' },
+  'admin@vainateya.edu':    { password: 'admin123',    role: 'admin'   },
+  // Real database accounts (fallback when backend is offline)
+  'vv.chiplunkar@vainateya.edu': { password: 'Teacher@2025', role: 'teacher' },
+  'admin@vainateya.school':      { password: 'Admin@2025',   role: 'admin'   },
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

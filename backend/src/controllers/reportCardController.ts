@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Score, Student } from "../models";
+import { Score, Student, ReportCard } from "../models";
 import { AuthRequest } from "../middleware/auth";
 import { getMetaValue } from "../utils/auth";
 import { z } from "zod";
@@ -13,55 +13,56 @@ const ScoreSchema = z.object({
   date: z.string(),
 });
 
-/**
- * GET /api/scores?studentId=X&className=X
- * - Teacher: defaults to their class if no filter
- * - Student: auto-resolves to their Student record
- * - Parent: auto-resolves to their children
- * All studentId references are Student._id
- */
+const SaveReportCardSchema = z.object({
+  studentId: z.string(),
+  term: z.enum(["सत्र १", "सत्र २", "वार्षिक"]),
+  academicYear: z.string().optional(),
+  subjectGrades: z.array(
+    z.object({
+      subject: z.string(),
+      grade: z.string(),
+      scorePercent: z.number().min(0).max(100),
+      effort: z.enum(["उत्कृष्ट", "चांगले", "समाधानकारक", "सुधारणा आवश्यक"]),
+      remark: z.string().optional(),
+    })
+  ),
+  teacherComment: z.string().optional(),
+});
+
+// ──────────────────────────────────────────────
+// GET /api/scores?studentId=X&className=X
+// ──────────────────────────────────────────────
 export async function getScores(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
+    if (!req.user) { res.status(401).json({ error: "Not authenticated" }); return; }
 
     const query: any = {};
     const forceStudentId = req.query.studentId as string | undefined;
     const className = req.query.className as string | undefined;
 
     if (forceStudentId) {
-      // Specific student requested — validate access
       if (req.user.role === "teacher") {
         const teacherClass = getMetaValue(req.user.meta, "class");
         const student = await Student.findById(forceStudentId);
         if (student && student.className !== teacherClass) {
-          res.status(403).json({ error: "Student not in your class" });
-          return;
+          res.status(403).json({ error: "Student not in your class" }); return;
         }
       }
       query.studentId = forceStudentId;
     } else if (req.user.role === "student") {
-      // Auto-locate the Student record for this user
       const studentDoc = await Student.findOne({ studentUserId: req.user._id });
-      if (!studentDoc) {
-        res.json({ scores: [] });
-        return;
-      }
+      if (!studentDoc) { res.json({ scores: [] }); return; }
       query.studentId = studentDoc._id;
     } else if (req.user.role === "parent") {
       const children = await Student.find({ parentUserId: req.user._id }).select("_id");
       query.studentId = { $in: children.map((c) => c._id) };
     } else if (req.user.role === "teacher") {
-      // Default: all students in teacher's class
       const teacherClass = className || getMetaValue(req.user.meta, "class");
       if (teacherClass) {
         const students = await Student.find({ className: teacherClass }).select("_id");
         query.studentId = { $in: students.map((s) => s._id) };
       }
     } else if (className) {
-      // Admin or other with className filter
       const students = await Student.find({ className }).select("_id");
       query.studentId = { $in: students.map((s) => s._id) };
     }
@@ -94,82 +95,56 @@ export async function getScores(req: AuthRequest, res: Response): Promise<void> 
   }
 }
 
-
+// ──────────────────────────────────────────────
+// POST /api/scores  (add a score entry)
+// ──────────────────────────────────────────────
 export async function addScore(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
-
+    if (!req.user) { res.status(401).json({ error: "Not authenticated" }); return; }
     if (req.user.role !== "teacher") {
-      res.status(403).json({ error: "Only teachers can add scores" });
-      return;
+      res.status(403).json({ error: "Only teachers can add scores" }); return;
     }
 
     const body = ScoreSchema.parse(req.body);
     const { studentId, subject, testName, scorePercent, grade, date } = body;
 
-    // Validate student belongs to teacher's class
     const teacherClass = getMetaValue(req.user.meta, "class");
     const student = await Student.findById(studentId);
-    if (!student) {
-      res.status(404).json({ error: "Student not found" });
-      return;
-    }
+    if (!student) { res.status(404).json({ error: "Student not found" }); return; }
     if (teacherClass && student.className !== teacherClass) {
-      res.status(403).json({ error: "Student not in your class" });
-      return;
+      res.status(403).json({ error: "Student not in your class" }); return;
     }
 
-    const score = new Score({
-      studentId,
-      subject,
-      testName,
-      scorePercent,
-      grade,
-      date,
-    });
-
+    const score = new Score({ studentId, subject, testName, scorePercent, grade, date });
     await score.save();
 
     res.status(201).json({
       score: {
-        id: score._id.toString(),
-        studentId,
-        studentName: student.name,
-        subject,
-        testName,
-        scorePercent,
-        grade,
-        date,
+        id: score._id.toString(), studentId, studentName: student.name,
+        subject, testName, scorePercent, grade, date,
       }
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
-      res.status(400).json({ error: "Invalid input", details: err.errors });
-      return;
+      res.status(400).json({ error: "Invalid input", details: err.errors }); return;
     }
     console.error("AddScore error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
 
+// ──────────────────────────────────────────────
+// GET /api/report-cards  (list for teacher's class)
+// ──────────────────────────────────────────────
 export async function listReportCards(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
+    if (!req.user) { res.status(401).json({ error: "Not authenticated" }); return; }
 
     const query: any = {};
-    
+
     if (req.user.role === "student") {
       const student = await Student.findOne({ studentUserId: req.user._id });
-      if (!student) {
-        res.json({ reportCards: [] });
-        return;
-      }
+      if (!student) { res.json({ reportCards: [] }); return; }
       query.studentId = student._id;
     } else if (req.user.role === "parent") {
       const children = await Student.find({ parentUserId: req.user._id }).select("_id");
@@ -182,115 +157,357 @@ export async function listReportCards(req: AuthRequest, res: Response): Promise<
       }
     }
 
-    const scores = await Score.find(query)
-      .populate("studentId", "name roll className")
-      .sort({ date: -1 });
+    const reportCards = await ReportCard.find(query)
+      .populate("studentId", "name roll className parentName")
+      .sort({ createdAt: -1 });
 
-    res.json({ reportCards: scores });
+    const items = reportCards.map((r: any) => ({
+      _id: r._id.toString(),
+      studentId: r.studentId?._id?.toString(),
+      studentName: r.studentId?.name,
+      studentRoll: r.studentId?.roll,
+      className: r.className,
+      term: r.term,
+      academicYear: r.academicYear,
+      overallGrade: r.overallGrade,
+      overallPercent: r.overallPercent,
+      subjectGrades: r.subjectGrades,
+      teacherComment: r.teacherComment,
+      generatedAt: r.createdAt,
+    }));
+
+    res.json({ reportCards: items });
   } catch (err) {
     console.error("ListReportCards error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
 
-export async function generateReportCard(req: AuthRequest, res: Response): Promise<void> {
+// ──────────────────────────────────────────────
+// POST /api/report-cards/save  (save/upsert a report card)
+// ──────────────────────────────────────────────
+export async function saveReportCard(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!req.user || req.user.role !== "teacher") {
-      res.status(403).json({ error: "Only teachers can generate report cards" });
-      return;
+      res.status(403).json({ error: "Only teachers can save report cards" }); return;
     }
 
-    const { studentId } = req.params;
+    const body = SaveReportCardSchema.parse(req.body);
+    const { studentId, term, subjectGrades, teacherComment } = body;
+    const academicYear = body.academicYear || "२०२४-२५";
+
     const student = await Student.findById(studentId);
-    
-    if (!student) {
-      res.status(404).json({ error: "Student not found" });
-      return;
+    if (!student) { res.status(404).json({ error: "Student not found" }); return; }
+
+    const teacherClass = getMetaValue(req.user.meta, "class");
+    if (teacherClass && student.className !== teacherClass) {
+      res.status(403).json({ error: "Student not in your class" }); return;
+    }
+
+    // Calculate overall
+    const overallPercent = subjectGrades.length > 0
+      ? Math.round(subjectGrades.reduce((s, g) => s + g.scorePercent, 0) / subjectGrades.length)
+      : 0;
+    const overallGrade =
+      overallPercent >= 90 ? "A+" :
+      overallPercent >= 80 ? "A" :
+      overallPercent >= 70 ? "A-" :
+      overallPercent >= 60 ? "B+" :
+      overallPercent >= 50 ? "B" : "C";
+
+    // Upsert (one report card per student per term per year)
+    const reportCard = await ReportCard.findOneAndUpdate(
+      { studentId, term, academicYear },
+      {
+        studentId,
+        className: student.className,
+        academicYear,
+        term,
+        subjectGrades,
+        overallGrade,
+        overallPercent,
+        teacherComment: teacherComment || "",
+        generatedByTeacherId: req.user._id,
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(201).json({
+      reportCard: {
+        _id: reportCard._id.toString(),
+        studentId,
+        studentName: student.name,
+        studentRoll: student.roll,
+        className: student.className,
+        term,
+        academicYear,
+        subjectGrades,
+        overallGrade,
+        overallPercent,
+        teacherComment,
+        generatedAt: reportCard.createdAt,
+      }
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: "Invalid input", details: err.errors }); return;
+    }
+    console.error("SaveReportCard error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// ──────────────────────────────────────────────
+// POST /api/report-cards/generate-all  (generate for whole class from scores)
+// ──────────────────────────────────────────────
+export async function generateAllReportCards(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user || req.user.role !== "teacher") {
+      res.status(403).json({ error: "Only teachers can generate report cards" }); return;
     }
 
     const teacherClass = getMetaValue(req.user.meta, "class");
-    if (student.className !== teacherClass) {
-      res.status(403).json({ error: "Student not in your class" });
-      return;
+    const term: string = (req.body.term as string) || "वार्षिक";
+    const academicYear: string = (req.body.academicYear as string) || "२०२४-२५";
+
+    const students = await Student.find({ className: teacherClass });
+    if (students.length === 0) {
+      res.json({ reportCards: [], message: "No students found in your class" }); return;
+    }
+
+    const generated: any[] = [];
+
+    for (const student of students) {
+      const scores = await Score.find({ studentId: student._id });
+      if (scores.length === 0) continue;
+
+      // Aggregate subject grades from score records
+      const subjectMap: Record<string, number[]> = {};
+      for (const sc of scores) {
+        if (!subjectMap[sc.subject]) subjectMap[sc.subject] = [];
+        subjectMap[sc.subject].push(sc.scorePercent);
+      }
+
+      const subjectGrades = Object.entries(subjectMap).map(([subject, percents]) => {
+        const avg = Math.round(percents.reduce((a, b) => a + b, 0) / percents.length);
+        const grade =
+          avg >= 90 ? "A+" : avg >= 80 ? "A" : avg >= 70 ? "A-" :
+          avg >= 60 ? "B+" : avg >= 50 ? "B" : "C";
+        const effort =
+          avg >= 85 ? "उत्कृष्ट" : avg >= 70 ? "चांगले" :
+          avg >= 50 ? "समाधानकारक" : "सुधारणा आवश्यक";
+        return { subject, grade, scorePercent: avg, effort, remark: "" };
+      });
+
+      const overallPercent = Math.round(
+        subjectGrades.reduce((s, g) => s + g.scorePercent, 0) / subjectGrades.length
+      );
+      const overallGrade =
+        overallPercent >= 90 ? "A+" : overallPercent >= 80 ? "A" :
+        overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" :
+        overallPercent >= 50 ? "B" : "C";
+
+      const rc = await ReportCard.findOneAndUpdate(
+        { studentId: student._id, term, academicYear },
+        {
+          studentId: student._id,
+          className: teacherClass,
+          academicYear,
+          term,
+          subjectGrades,
+          overallGrade,
+          overallPercent,
+          teacherComment: "",
+          generatedByTeacherId: req.user._id,
+        },
+        { upsert: true, new: true }
+      );
+
+      generated.push({
+        _id: rc._id.toString(),
+        studentId: student._id.toString(),
+        studentName: student.name,
+        studentRoll: student.roll,
+        className: student.className,
+        term,
+        academicYear,
+        subjectGrades,
+        overallGrade,
+        overallPercent,
+        generatedAt: rc.createdAt,
+      });
+    }
+
+    res.json({ reportCards: generated, total: generated.length });
+  } catch (err) {
+    console.error("GenerateAllReportCards error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// ──────────────────────────────────────────────
+// POST /api/report-cards/generate/:studentId  (for one student from scores)
+// ──────────────────────────────────────────────
+export async function generateReportCard(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user || req.user.role !== "teacher") {
+      res.status(403).json({ error: "Only teachers can generate report cards" }); return;
+    }
+
+    const { studentId } = req.params;
+    const term: string = (req.body.term as string) || "वार्षिक";
+    const academicYear: string = (req.body.academicYear as string) || "२०२४-२५";
+
+    const student = await Student.findById(studentId);
+    if (!student) { res.status(404).json({ error: "Student not found" }); return; }
+
+    const teacherClass = getMetaValue(req.user.meta, "class");
+    if (teacherClass && student.className !== teacherClass) {
+      res.status(403).json({ error: "Student not in your class" }); return;
     }
 
     const scores = await Score.find({ studentId });
-    const reportCard = {
-      studentId,
-      studentName: student.name,
-      className: student.className,
-      roll: student.roll,
-      generatedAt: new Date(),
-      scores,
-      totalSubjects: new Set(scores.map(s => s.subject)).size,
-      averageScore: scores.length > 0 
-        ? scores.reduce((sum, s) => sum + s.scorePercent, 0) / scores.length 
-        : 0,
-    };
 
-    res.json({ reportCard });
+    // Aggregate
+    const subjectMap: Record<string, number[]> = {};
+    for (const sc of scores) {
+      if (!subjectMap[sc.subject]) subjectMap[sc.subject] = [];
+      subjectMap[sc.subject].push(sc.scorePercent);
+    }
+
+    const subjectGrades = Object.entries(subjectMap).map(([subject, percents]) => {
+      const avg = Math.round(percents.reduce((a, b) => a + b, 0) / percents.length);
+      const grade =
+        avg >= 90 ? "A+" : avg >= 80 ? "A" : avg >= 70 ? "A-" :
+        avg >= 60 ? "B+" : avg >= 50 ? "B" : "C";
+      const effort =
+        avg >= 85 ? "उत्कृष्ट" : avg >= 70 ? "चांगले" :
+        avg >= 50 ? "समाधानकारक" : "सुधारणा आवश्यक";
+      return { subject, grade, scorePercent: avg, effort, remark: "" };
+    });
+
+    const overallPercent = subjectGrades.length > 0
+      ? Math.round(subjectGrades.reduce((s, g) => s + g.scorePercent, 0) / subjectGrades.length)
+      : 0;
+    const overallGrade =
+      overallPercent >= 90 ? "A+" : overallPercent >= 80 ? "A" :
+      overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" :
+      overallPercent >= 50 ? "B" : "C";
+
+    const rc = await ReportCard.findOneAndUpdate(
+      { studentId, term, academicYear },
+      {
+        studentId,
+        className: student.className,
+        academicYear,
+        term,
+        subjectGrades,
+        overallGrade,
+        overallPercent,
+        teacherComment: "",
+        generatedByTeacherId: req.user._id,
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      reportCard: {
+        _id: rc._id.toString(),
+        studentId,
+        studentName: student.name,
+        studentRoll: student.roll,
+        parentName: student.parentName,
+        className: student.className,
+        term,
+        academicYear,
+        subjectGrades,
+        overallGrade,
+        overallPercent,
+        generatedAt: rc.createdAt,
+      }
+    });
   } catch (err) {
     console.error("GenerateReportCard error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 }
 
+// ──────────────────────────────────────────────
+// GET /api/report-cards/:studentId  (single student's card)
+// ──────────────────────────────────────────────
 export async function getStudentReportCard(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
+    if (!req.user) { res.status(401).json({ error: "Not authenticated" }); return; }
 
     const { studentId } = req.params;
+    const term = req.query.term as string | undefined;
+
     const student = await Student.findById(studentId);
-    
-    if (!student) {
-      res.status(404).json({ error: "Student not found" });
-      return;
-    }
+    if (!student) { res.status(404).json({ error: "Student not found" }); return; }
 
     // Access control
     if (req.user.role === "student") {
       const studentUser = await Student.findOne({ studentUserId: req.user._id });
       if (!studentUser || studentUser._id.toString() !== studentId) {
-        res.status(403).json({ error: "Cannot access other student's report card" });
-        return;
+        res.status(403).json({ error: "Cannot access other student's report card" }); return;
       }
     } else if (req.user.role === "parent") {
-      const parent = await Student.findOne({ 
-        parentUserId: req.user._id, 
-        _id: studentId 
-      });
-      if (!parent) {
-        res.status(403).json({ error: "Not parent of this student" });
-        return;
-      }
+      const parent = await Student.findOne({ parentUserId: req.user._id, _id: studentId });
+      if (!parent) { res.status(403).json({ error: "Not parent of this student" }); return; }
     } else if (req.user.role === "teacher") {
       const teacherClass = getMetaValue(req.user.meta, "class");
-      if (student.className !== teacherClass) {
-        res.status(403).json({ error: "Student not in your class" });
-        return;
+      if (teacherClass && student.className !== teacherClass) {
+        res.status(403).json({ error: "Student not in your class" }); return;
       }
     }
 
-    const scores = await Score.find({ studentId })
-      .sort({ date: -1 });
+    const query: any = { studentId };
+    if (term) query.term = term;
 
-    const reportCard = {
-      studentId,
-      studentName: student.name,
-      className: student.className,
-      roll: student.roll,
-      parentName: student.parentName,
-      scores,
-      totalSubjects: new Set(scores.map(s => s.subject)).size,
-      averageScore: scores.length > 0 
-        ? scores.reduce((sum, s) => sum + s.scorePercent, 0) / scores.length 
-        : 0,
-    };
+    const cards = await ReportCard.find(query).sort({ createdAt: -1 });
 
-    res.json({ reportCard });
+    if (cards.length === 0) {
+      // Fallback: build a card from Score collection
+      const scores = await Score.find({ studentId }).sort({ date: -1 });
+      const subjectMap: Record<string, number[]> = {};
+      for (const sc of scores) {
+        if (!subjectMap[sc.subject]) subjectMap[sc.subject] = [];
+        subjectMap[sc.subject].push(sc.scorePercent);
+      }
+      const subjectGrades = Object.entries(subjectMap).map(([subject, percents]) => {
+        const avg = Math.round(percents.reduce((a, b) => a + b, 0) / percents.length);
+        const grade = avg >= 90 ? "A+" : avg >= 80 ? "A" : avg >= 70 ? "A-" : avg >= 60 ? "B+" : avg >= 50 ? "B" : "C";
+        const effort = avg >= 85 ? "उत्कृष्ट" : avg >= 70 ? "चांगले" : avg >= 50 ? "समाधानकारक" : "सुधारणा आवश्यक";
+        return { subject, grade, scorePercent: avg, effort, remark: "" };
+      });
+      const overallPercent = subjectGrades.length
+        ? Math.round(subjectGrades.reduce((s, g) => s + g.scorePercent, 0) / subjectGrades.length) : 0;
+      const overallGrade = overallPercent >= 90 ? "A+" : overallPercent >= 80 ? "A" : overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" : overallPercent >= 50 ? "B" : "C";
+
+      res.json({
+        reportCard: {
+          studentId, studentName: student.name, studentRoll: student.roll,
+          parentName: student.parentName, className: student.className,
+          term: "वार्षिक", academicYear: "२०२४-२५",
+          subjectGrades, overallGrade, overallPercent, teacherComment: "",
+        }
+      });
+      return;
+    }
+
+    const r = cards[0] as any;
+    res.json({
+      reportCard: {
+        _id: r._id.toString(),
+        studentId, studentName: student.name, studentRoll: student.roll,
+        parentName: student.parentName, className: student.className,
+        term: r.term, academicYear: r.academicYear,
+        subjectGrades: r.subjectGrades,
+        overallGrade: r.overallGrade, overallPercent: r.overallPercent,
+        teacherComment: r.teacherComment,
+        generatedAt: r.createdAt,
+      }
+    });
   } catch (err) {
     console.error("GetStudentReportCard error:", err);
     res.status(500).json({ error: "Internal server error" });

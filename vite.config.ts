@@ -9,20 +9,12 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     port: 5173,
     strictPort: false,
-    middlewareMode: false,
-    hmr: {
-      protocol: 'http',
-      host: '10.204.104.102',
-      port: 5173,
-    },
-    // Proxy API requests to backend
+    // Proxy API requests to backend (fallback when VITE_API_URL not set)
     proxy: {
       '/api': {
-            target: 'http://10.204.104.102:9000',
-            changeOrigin: true,
-            secure: false,
-            rejectUnauthorized: false,
-            ws: true,
+        target: 'http://localhost:9000',
+        changeOrigin: true,
+        secure: false,
       },
     },
   },
