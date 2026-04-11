@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Event, Notification, User } from "../models";
 import { AuthRequest } from "../middleware/auth";
+import { getMetaValue } from "../utils/auth";
 import { z } from "zod";
 import mongoose from "mongoose";
 
@@ -12,6 +13,7 @@ const CreateEventSchema = z.object({
   type: z.enum(["notice", "event"]),
   icon: z.string().optional(),
   targetAudience: z.enum(["all", "students", "parents", "teachers"]).default("all"),
+  targetClasses: z.array(z.string().min(1)).optional(),
 });
 
 // ✅ Helper: format response
@@ -23,6 +25,7 @@ const toClientEvent = (event: any) => ({
   type: event.type,
   icon: event.icon,
   targetAudience: event.targetAudience,
+  targetClasses: event.targetClasses ?? [],
 });
 
 /**
@@ -50,6 +53,22 @@ export async function listEvents(req: Request, res: Response): Promise<void> {
       ];
     }
 
+    const viewerClass = req.query.viewerClass as string | undefined;
+    if (viewerClass) {
+      const classClause = {
+        $or: [
+          { targetClasses: { $exists: false } },
+          { targetClasses: { $eq: [] } },
+          { targetClasses: viewerClass },
+        ],
+      };
+      if (filter.$and) {
+        filter.$and.push(classClause);
+      } else {
+        filter.$and = [classClause];
+      }
+    }
+
     const [events, total] = await Promise.all([
       Event.find(filter)
         .sort({ date: -1 })
@@ -69,9 +88,12 @@ export async function listEvents(req: Request, res: Response): Promise<void> {
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (err) {
-    console.error("listEvents error:", err);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err: any) {
+    console.error("GetEvents error:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch events",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -95,11 +117,23 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
     }
 
     const body = CreateEventSchema.parse(req.body);
+    const teacherClass = user.role === "teacher" ? getMetaValue(user.meta, "class") : "";
+    let targetClasses = body.targetClasses;
+    if (user.role === "teacher" && teacherClass) {
+      if (!targetClasses?.length) {
+        targetClasses = [teacherClass];
+      }
+    }
 
     const event = await Event.create({
-      ...body,
+      title: body.title,
+      description: body.description,
       date: new Date(body.date),
-      createdByTeacherId: user._id,
+      type: body.type,
+      icon: body.icon,
+      targetAudience: body.targetAudience,
+      targetClasses: targetClasses ?? [],
+      createdBy: user._id,
     });
 
     // 🔔 ✅ Send notifications (IMPORTANT FEATURE)

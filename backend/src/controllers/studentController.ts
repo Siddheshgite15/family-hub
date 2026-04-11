@@ -1,7 +1,56 @@
 import { Request, Response } from "express";
+import { z } from "zod";
 import { Student } from "../models";
 import { AuthRequest } from "../middleware/auth";
 import { getMetaValue } from "../utils/auth";
+import { serializeStudentForViewer, STUDENT_UPDATABLE_FIELDS } from "../utils/studentSerialize";
+
+const MailingSchema = z
+  .object({
+    line1: z.string().optional(),
+    line2: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    pincode: z.string().optional(),
+  })
+  .optional();
+
+const EmergencySchema = z
+  .object({
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    relation: z.string().optional(),
+  })
+  .optional();
+
+const UpdateStudentSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    roll: z.string().min(1).max(32).optional(),
+    idNumber: z.string().optional(),
+    regNumber: z.string().optional(),
+    className: z.string().min(1).optional(),
+    parentName: z.string().min(1).optional(),
+    motherName: z.string().optional(),
+    fatherName: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    gender: z.enum(["", "male", "female", "other"]).optional(),
+    address: z.string().optional(),
+    mailingAddress: MailingSchema,
+    studentPhone: z.string().optional(),
+    parentPhone: z.string().optional(),
+    alternateGuardianName: z.string().optional(),
+    alternateGuardianPhone: z.string().optional(),
+    admissionDate: z.string().optional(),
+    bloodGroup: z.string().optional(),
+    previousSchool: z.string().optional(),
+    notes: z.string().optional(),
+    motherTongue: z.string().optional(),
+    medium: z.string().optional(),
+    udiseNumber: z.string().optional(),
+    emergencyContact: EmergencySchema,
+  })
+  .strict();
 
 /**
  * GET /api/students
@@ -36,7 +85,10 @@ export async function getStudents(req: AuthRequest, res: Response): Promise<void
     } else if (user.role === "student") {
       query.studentUserId = user._id;
     } else if (user.role === "admin") {
-      query = {}; // explicit
+      query = {};
+    } else {
+      res.status(403).json({ error: "Not allowed" });
+      return;
     }
 
     // Additional filters
@@ -61,20 +113,18 @@ export async function getStudents(req: AuthRequest, res: Response): Promise<void
       .skip(skip)
       .limit(limit);
 
-    const showEmail = ["teacher", "admin"].includes(user.role);
-
-    const items = students.map((s: any) => ({
-      id: s._id.toString(),
-      name: s.name,
-      roll: s.roll,
-      class: s.className,
-      parentName: s.parentName,
-      studentEmail: showEmail ? s.studentEmail : undefined,
-      parentEmail: showEmail ? s.parentEmail : undefined,
-      studentUserId: s.studentUserId?._id?.toString(),
-      parentUserId: s.parentUserId?._id?.toString(),
-      createdAt: s.createdAt,
-    }));
+    const items = students.map((s: any) => {
+      const plain = s.toObject ? s.toObject() : s;
+      return serializeStudentForViewer(
+        {
+          ...plain,
+          studentUserId: plain.studentUserId?._id ?? plain.studentUserId,
+          parentUserId: plain.parentUserId?._id ?? plain.parentUserId,
+        },
+        user.role,
+        user._id
+      );
+    });
 
     res.json({
       students: items,
@@ -85,9 +135,12 @@ export async function getStudents(req: AuthRequest, res: Response): Promise<void
         pages: Math.ceil(total / limit),
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("GetStudents error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to fetch students",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -131,21 +184,21 @@ export async function getStudentById(req: AuthRequest, res: Response): Promise<v
         res.status(403).json({ error: "Not authorized" });
         return;
       }
+    } else if (user.role !== "admin") {
+      res.status(403).json({ error: "Not allowed" });
+      return;
     }
 
-    const showEmail = ["teacher", "admin"].includes(user.role);
-
-    const item = {
-      id: student._id.toString(),
-      name: student.name,
-      roll: student.roll,
-      class: student.className,
-      parentName: student.parentName,
-      studentEmail: showEmail ? student.studentEmail : undefined,
-      parentEmail: showEmail ? student.parentEmail : undefined,
-      studentUserId: (student.studentUserId as any)?._id?.toString(),
-      parentUserId: (student.parentUserId as any)?._id?.toString(),
-    };
+    const plain = (student as any).toObject ? (student as any).toObject() : student;
+    const item = serializeStudentForViewer(
+      {
+        ...plain,
+        studentUserId: plain.studentUserId?._id ?? plain.studentUserId,
+        parentUserId: plain.parentUserId?._id ?? plain.parentUserId,
+      },
+      user.role,
+      user._id
+    );
 
     res.json({ student: item });
   } catch (err) {
@@ -170,7 +223,16 @@ export async function updateStudent(req: AuthRequest, res: Response): Promise<vo
     }
 
     const { id } = req.params;
-    const updates = req.body;
+    let updates: Record<string, unknown>;
+    try {
+      updates = UpdateStudentSchema.parse(req.body);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid input", details: e.errors });
+        return;
+      }
+      throw e;
+    }
 
     const student = await Student.findById(id);
     if (!student) {
@@ -187,10 +249,39 @@ export async function updateStudent(req: AuthRequest, res: Response): Promise<vo
       }
     }
 
-    Object.assign(student, updates);
+    if (updates.roll !== undefined && updates.roll !== student.roll) {
+      const targetClass = updates.className ?? student.className;
+      const dup = await Student.findOne({
+        className: targetClass,
+        roll: updates.roll,
+        _id: { $ne: student._id },
+      });
+      if (dup) {
+        res.status(400).json({ error: "Roll number already used in this class" });
+        return;
+      }
+    }
+
+    for (const key of STUDENT_UPDATABLE_FIELDS) {
+      if (key in updates && updates[key as keyof typeof updates] !== undefined) {
+        (student as any)[key] = updates[key as keyof typeof updates];
+      }
+    }
+
     await student.save();
 
-    res.json({ student });
+    const plain = student.toObject();
+    res.json({
+      student: serializeStudentForViewer(
+        {
+          ...plain,
+          studentUserId: plain.studentUserId,
+          parentUserId: plain.parentUserId,
+        },
+        req.user.role,
+        req.user._id
+      ),
+    });
   } catch (err) {
     console.error("updateStudent error:", err);
     res.status(500).json({ error: "Internal server error" });

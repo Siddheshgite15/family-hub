@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   BookOpen,
   ClipboardList,
+  CalendarDays,
   Bell,
   LogOut,
   Menu,
@@ -20,6 +21,7 @@ const parentLinks = [
   { title: "पालक डॅशबोर्ड", url: "/parent", icon: LayoutDashboard },
   { title: "विद्यार्थी प्रगती", url: "/parent/progress", icon: ClipboardList },
   { title: "घरचा अभ्यास", url: "/parent/homework", icon: BookOpen },
+  { title: "उपस्थिती", url: "/parent/attendance", icon: CalendarDays },
 ];
 
 export default function ParentLayout() {

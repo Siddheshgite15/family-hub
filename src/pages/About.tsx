@@ -1,5 +1,6 @@
 import { PublicNavbar } from '@/components/PublicNavbar';
 import { PublicFooter } from '@/components/PublicFooter';
+import { schoolConfig } from '@/config/school';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
@@ -21,8 +22,6 @@ const fadeUp = {
     transition: { delay: i * 0.1, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const },
   }),
 };
-
-const mapSrc = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3748.7!2d74.1000!3d20.0800!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bdcff6b9c59cf03%3A0x3e2f2f68d5c1c3d1!2sNiphad%2C%20Maharashtra!5e0!3m2!1sen!2sin!4v1712573200000!5m2!1sen!2sin";
 
 const photos = [campus1, img1, campus2, img2, campus3, img3, img5, img7, img9];
 
@@ -58,12 +57,12 @@ export default function About() {
               </span>
 
               <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-extrabold leading-[1.12] mb-6">
-                वैनतेय प्राथमिक<br />
-                <span className="text-gradient">विद्या मंदिर</span>
+                {schoolConfig.heroTitleBaseMr}<br />
+                <span className="text-gradient">{schoolConfig.heroTitleAccentMr}</span>
               </h1>
 
               <p className="text-white/65 text-base md:text-lg leading-relaxed mb-8 max-w-md">
-                न्या. रानडे विद्याप्रसारक मंडळ संचालित — निफाड, नाशिक येथे इयत्ता १ ली
+                {schoolConfig.trusteeLineMr} — {schoolConfig.taglineMr} येथे इयत्ता १ ली
                 ते ४ थी साठी मराठी माध्यमातून दर्जेदार प्राथमिक शिक्षण.
               </p>
 
@@ -124,7 +123,7 @@ export default function About() {
               {/* Glass badge */}
               <div className="absolute top-5 left-5 glass rounded-xl px-3 py-2 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-white text-xs font-semibold">निफाड, नाशिक</span>
+                <span className="text-white text-xs font-semibold">{schoolConfig.taglineMr}</span>
               </div>
             </motion.div>
 
@@ -260,11 +259,11 @@ export default function About() {
               variants={fadeUp} custom={0}
             >
               {[
-                { Icon: MapPin, c: 'text-indigo-600 bg-indigo-50', v: 'वैनतेय प्राथमिक विद्या मंदिर\nनिफाड, ता. निफाड, जि. नाशिक — 422303' },
-                { Icon: Phone,  c: 'text-emerald-600 bg-emerald-50', v: '+९१ २२ २३५६ ६८९०' },
-                { Icon: Mail,   c: 'text-violet-600 bg-violet-50',  v: 'info@vainateya.edu' },
-              ].map(({ Icon, c, v }) => (
-                <div key={v} className="flex gap-4 glass-light rounded-2xl p-4 hover:shadow-md transition-all duration-200">
+                { Icon: MapPin, c: 'text-indigo-600 bg-indigo-50', v: schoolConfig.fullAddressMr, k: 'addr' },
+                { Icon: Phone,  c: 'text-emerald-600 bg-emerald-50', v: schoolConfig.phoneDisplay, k: 'phone' },
+                { Icon: Mail,   c: 'text-violet-600 bg-violet-50',  v: schoolConfig.emailGeneral, k: 'mail' },
+              ].map(({ Icon, c, v, k }) => (
+                <div key={k} className="flex gap-4 glass-light rounded-2xl p-4 hover:shadow-md transition-all duration-200">
                   <div className={`w-10 h-10 rounded-xl ${c} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Icon className="w-5 h-5" />
                   </div>
@@ -289,21 +288,21 @@ export default function About() {
               transition={{ duration: 0.6, delay: 0.15 }}
             >
               <iframe
-                src={mapSrc}
+                src={schoolConfig.mapEmbedUrl}
                 width="100%"
                 height="360"
                 style={{ border: 0, display: 'block' }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="वैनतेय प्राथमिक विद्या मंदिर — निफाड"
+                title={`${schoolConfig.displayNameMr} — ${schoolConfig.taglineMr}`}
               />
               <div className="bg-card px-5 py-3 border-t border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <MapPin className="w-4 h-4 text-primary" />
-                  वैनतेय प्राथमिक विद्या मंदिर, निफाड
+                  {schoolConfig.mapCaptionMr}
                 </div>
-                <a href="https://maps.google.com/?q=Niphad+Nashik+Maharashtra"
+                <a href={schoolConfig.mapExternalUrl}
                   target="_blank" rel="noopener noreferrer"
                   className="text-xs text-primary font-semibold hover:underline flex items-center gap-1">
                   Google Maps <ExternalLink className="w-3 h-3" />

@@ -48,11 +48,14 @@ export default function TeacherAnalytics() {
     ...subjectPerformance.filter(s => s.avg >= 85).map(s => ({ subject: s.subject, topic: 'उत्कृष्ट कामगिरी', percentage: `${s.avg}%` })),
   ], [subjectPerformance]);
 
-  const revisionTopics = [
-    { subject: 'इंग्रजी', topic: 'Grammar Practice', reason: 'काळ (Tenses) मध्ये गुण कमी' },
-    { subject: 'गणित', topic: 'शब्द समस्या सराव', reason: 'विद्यार्थ्यांना अडचण' },
-    { subject: 'गणित', topic: 'अपूर्णांक', reason: 'मूलभूत संकल्पना स्पष्ट करणे' },
-  ];
+  const revisionTopics = useMemo(() =>
+    weakAreas.map(area => ({
+      subject: area.subject,
+      topic: area.topic,
+      reason: `${area.students} विद्यार्थ्यांना या विषयात अडचण आहे`,
+    })),
+    [weakAreas]
+  );
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">

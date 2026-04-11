@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Homework, HomeworkStatus, Student } from "../models";
 import { AuthRequest } from "../middleware/auth";
+import { getMetaValue } from "../utils/auth";
 import { z } from "zod";
 import mongoose from "mongoose";
 
@@ -53,6 +54,10 @@ export async function getHomework(req: AuthRequest, res: Response): Promise<void
 
     if (user.role === "teacher") {
       query.createdByTeacherId = user._id;
+      const teacherClass = getUserClass(user);
+      if (teacherClass) {
+        query.className = teacherClass;
+      }
     }
 
     if (user.role === "student") {
@@ -88,9 +93,12 @@ export async function getHomework(req: AuthRequest, res: Response): Promise<void
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("GetHomework error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to fetch homework",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -112,9 +120,16 @@ export async function createHomework(req: AuthRequest, res: Response): Promise<v
     }
 
     const body = HomeworkSchema.parse(req.body);
+    const teacherClass = getMetaValue(user.meta, "class");
+    const className = teacherClass || body.className;
+    if (teacherClass && body.className !== teacherClass) {
+      res.status(403).json({ error: "Homework can only be assigned to your class" });
+      return;
+    }
 
     const homework = await Homework.create({
       ...body,
+      className,
       dueDate: body.dueDate || null,
       createdByTeacherId: user._id,
     });
@@ -128,7 +143,10 @@ export async function createHomework(req: AuthRequest, res: Response): Promise<v
       return;
     }
     console.error("CreateHomework error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to create homework",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 

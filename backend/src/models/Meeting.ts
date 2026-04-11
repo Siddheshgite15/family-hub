@@ -14,12 +14,16 @@ const meetingSchema = new mongoose.Schema(
     parentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: false,
     },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
-      required: true,
+      required: false,
     },
+    /** When true, `studentId` may be omitted; use `className` for scope */
+    classWide: { type: Boolean, default: false },
+    className: { type: String, default: "" },
     studentName: { type: String, required: true },
     date: { type: Date, required: true },
     timeLabel: { type: String, required: true }, // e.g. "3:30 PM - 4:00 PM"

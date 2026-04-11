@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { apiCall } from '@/lib/api';
 import { MOCK_USERS, MOCK_STUDENTS } from '@/lib/mockData';
+
+const SEED_MOCK_STUDENTS = import.meta.env.DEV && !import.meta.env.VITE_API_URL;
 
 export type UserRole = 'teacher' | 'parent' | 'student' | 'admin';
 
@@ -25,13 +27,50 @@ interface EnrolledStudent {
   parentPassword: string;
 }
 
+export type EnrollPayload = {
+  name: string;
+  parentName: string;
+  className: string;
+  motherName?: string;
+  fatherName?: string;
+  roll?: string;
+  idNumber?: string;
+  regNumber?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  mailingAddress?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  studentPhone?: string;
+  parentPhone?: string;
+  alternateGuardianName?: string;
+  alternateGuardianPhone?: string;
+  admissionDate?: string;
+  bloodGroup?: string;
+  previousSchool?: string;
+  notes?: string;
+  motherTongue?: string;
+  medium?: string;
+  udiseNumber?: string;
+  emergencyContact?: {
+    name?: string;
+    phone?: string;
+    relation?: string;
+  };
+};
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
   enrolledStudents: EnrolledStudent[];
-  enrollStudent: (name: string, parentName: string, className: string) => Promise<EnrolledStudent>;
+  enrollStudent: (payload: EnrollPayload) => Promise<EnrolledStudent>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -54,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>(() => {
+    if (!SEED_MOCK_STUDENTS) return [];
     return MOCK_STUDENTS.map(s => ({
       id: s.id,
       name: s.name,
@@ -81,17 +121,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
     } catch {
-      // Fall through to demo login
+      // Fall through to demo login in dev only
     }
 
-    // Demo/mock login
-    const demo = DEMO_CREDENTIALS[email];
-    if (demo && demo.password === password && demo.role === role) {
-      const mockUser = MOCK_USERS[role];
-      setUser(mockUser);
-      localStorage.setItem('school_user', JSON.stringify(mockUser));
-      localStorage.setItem('auth_token', 'demo-token');
-      return true;
+    if (import.meta.env.DEV) {
+      const demo = DEMO_CREDENTIALS[email];
+      if (demo && demo.password === password && demo.role === role) {
+        const mockUser = MOCK_USERS[role];
+        setUser(mockUser);
+        localStorage.setItem('school_user', JSON.stringify(mockUser));
+        localStorage.setItem('auth_token', 'demo-token');
+        return true;
+      }
     }
 
     return false;
@@ -103,11 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('auth_token');
   }, []);
 
-  const enrollStudent = useCallback(async (name: string, parentName: string, className: string): Promise<EnrolledStudent> => {
+  const enrollStudent = useCallback(async (payload: EnrollPayload): Promise<EnrolledStudent> => {
     try {
       const data = await apiCall('/teacher/enroll', {
         method: 'POST',
-        body: JSON.stringify({ name, parentName, className }),
+        body: JSON.stringify(payload),
       });
 
       const studentData = data.student || data;
@@ -116,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: studentData.name,
         roll: studentData.roll,
         class: studentData.class,
-        parentName: studentData.parentName || parentName,
+        parentName: studentData.parentName || payload.parentName,
         studentEmail: studentData.studentEmail,
         studentPassword: studentData.studentPassword,
         parentEmail: studentData.parentEmail,

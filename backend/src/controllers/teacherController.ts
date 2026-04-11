@@ -1,13 +1,49 @@
 import { Request, Response } from "express";
 import { User, Student } from "../models";
 import { AuthRequest } from "../middleware/auth";
-import { hashPassword, signToken, toClientUser } from "../utils/auth";
+import { hashPassword, toClientUser } from "../utils/auth";
+import { getMetaValue } from "../utils/auth";
 import { z } from "zod";
 
 const EnrollSchema = z.object({
   name: z.string().min(1),
   parentName: z.string().min(1),
   className: z.string().min(1),
+  motherName: z.string().optional(),
+  fatherName: z.string().optional(),
+  roll: z.string().min(1).max(32).optional(),
+  idNumber: z.string().optional(),
+  regNumber: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(["", "male", "female", "other"]).optional(),
+  address: z.string().optional(),
+  parentPhone: z.string().optional(),
+  alternateGuardianName: z.string().optional(),
+  alternateGuardianPhone: z.string().optional(),
+  admissionDate: z.string().optional(),
+  bloodGroup: z.string().optional(),
+  previousSchool: z.string().optional(),
+  notes: z.string().optional(),
+  studentPhone: z.string().optional(),
+  motherTongue: z.string().optional(),
+  medium: z.string().optional(),
+  udiseNumber: z.string().optional(),
+  mailingAddress: z
+    .object({
+      line1: z.string().optional(),
+      line2: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      pincode: z.string().optional(),
+    })
+    .optional(),
+  emergencyContact: z
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      relation: z.string().optional(),
+    })
+    .optional(),
 });
 
 function generatePassword(): string {
@@ -22,11 +58,54 @@ export async function enrollStudent(req: AuthRequest, res: Response): Promise<vo
     }
 
     const body = EnrollSchema.parse(req.body);
-    const { name, parentName, className } = body;
+    let { className } = body;
+    const teacherClass = getMetaValue(req.user.meta, "class");
+    if (teacherClass && className !== teacherClass) {
+      res.status(403).json({ error: "You can only enroll students in your assigned class" });
+      return;
+    }
+    if (teacherClass) {
+      className = teacherClass;
+    }
 
-    // Auto-generate sequential roll number for the class
-    const existingCount = await Student.countDocuments({ className });
-    const rollNum = String(existingCount + 1).padStart(2, "0");
+    const {
+      name,
+      parentName,
+      roll: rollOverride,
+      motherName = "",
+      fatherName = "",
+      idNumber = "",
+      regNumber = "",
+      dateOfBirth = "",
+      gender = "",
+      address = "",
+      parentPhone = "",
+      alternateGuardianName = "",
+      alternateGuardianPhone = "",
+      admissionDate = "",
+      bloodGroup = "",
+      previousSchool = "",
+      notes = "",
+      studentPhone = "",
+      motherTongue = "",
+      medium = "",
+      udiseNumber = "",
+      mailingAddress,
+      emergencyContact,
+    } = body;
+
+    let rollNum: string;
+    if (rollOverride?.trim()) {
+      rollNum = rollOverride.trim();
+      const dup = await Student.findOne({ className, roll: rollNum });
+      if (dup) {
+        res.status(400).json({ error: "Roll number already used in this class" });
+        return;
+      }
+    } else {
+      const existingCount = await Student.countDocuments({ className });
+      rollNum = String(existingCount + 1).padStart(2, "0");
+    }
 
     const baseEmail = name
       .toLowerCase()
@@ -70,13 +149,33 @@ export async function enrollStudent(req: AuthRequest, res: Response): Promise<vo
     const student = new Student({
       name,
       roll: rollNum,
+      idNumber,
+      regNumber,
       className,
       parentName,
+      motherName,
+      fatherName,
       studentEmail,
       parentEmail,
       studentUserId: studentUser._id,
       parentUserId: parentUser._id,
       createdByTeacherId: req.user._id,
+      dateOfBirth,
+      gender,
+      address,
+      parentPhone,
+      alternateGuardianName,
+      alternateGuardianPhone,
+      admissionDate,
+      bloodGroup,
+      previousSchool,
+      notes,
+      studentPhone,
+      motherTongue,
+      medium,
+      udiseNumber,
+      mailingAddress: mailingAddress || {},
+      emergencyContact: emergencyContact || {},
     });
 
     await student.save();
@@ -88,10 +187,25 @@ export async function enrollStudent(req: AuthRequest, res: Response): Promise<vo
         roll: rollNum,
         class: className,
         parentName,
+        motherName: student.motherName,
+        fatherName: student.fatherName,
         studentEmail,
         studentPassword: studentPasswordPlain,
         parentEmail,
         parentPassword: parentPasswordPlain,
+        dateOfBirth: student.dateOfBirth,
+        gender: student.gender,
+        address: student.address,
+        mailingAddress: student.mailingAddress,
+        studentPhone: student.studentPhone,
+        parentPhone: student.parentPhone,
+        alternateGuardianName: student.alternateGuardianName,
+        alternateGuardianPhone: student.alternateGuardianPhone,
+        admissionDate: student.admissionDate,
+        bloodGroup: student.bloodGroup,
+        previousSchool: student.previousSchool,
+        notes: student.notes,
+        emergencyContact: student.emergencyContact,
         studentUser: toClientUser(studentUser),
         parentUser: toClientUser(parentUser),
       }

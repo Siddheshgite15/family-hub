@@ -88,7 +88,10 @@ export async function submitEnquiry(req: Request, res: Response): Promise<void> 
     }
 
     console.error("Submit enquiry error:", err);
-    res.status(500).json({ error: "Failed to submit enquiry" });
+    res.status(500).json({ 
+      error: "Failed to submit enquiry",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 

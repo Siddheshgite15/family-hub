@@ -105,9 +105,12 @@ export async function listInstructions(
     }));
 
     res.json({ instructions: formatted });
-  } catch (err) {
-    console.error("❌ listInstructions error:", err);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err: any) {
+    console.error("GetInstructions error:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch instructions",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 

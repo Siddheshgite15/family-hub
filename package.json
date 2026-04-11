@@ -51,6 +51,7 @@
     "framer-motion": "^12.34.5",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^2.5.2",
     "lucide-react": "^0.462.0",
     "mongodb": "^4.17.2",
     "next-themes": "^0.3.0",

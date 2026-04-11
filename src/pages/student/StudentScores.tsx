@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { BarChart3, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiCall } from '@/lib/api';
+import { downloadReportCardPdf } from '@/lib/schoolPdf';
+import { toast } from 'sonner';
 
 interface ScoreRecord {
   id: string;
@@ -16,18 +21,26 @@ export default function StudentScores() {
   const { user } = useAuth();
   const [scores, setScores] = useState<ScoreRecord[]>([]);
 
+  const { data: stuData } = useQuery({
+    queryKey: ['student-profile-row'],
+    queryFn: () => apiCall('/students?limit=5'),
+    enabled: !!user,
+  });
+  const studentId = stuData?.students?.[0]?.id as string | undefined;
+
+  const { data: reportData } = useQuery({
+    queryKey: ['student-report-card', studentId],
+    queryFn: () => apiCall(`/report-cards/${studentId}`),
+    enabled: !!studentId,
+  });
+
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (!token || !user) return;
+    if (!user) return;
 
     // No need to pass studentId — backend auto-detects from JWT for student role
     const load = async () => {
       try {
-        const res = await fetch(`/api/scores`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await apiCall('/scores');
         if (Array.isArray(data.scores)) {
           const mapped: ScoreRecord[] = data.scores.map((s: any) => ({
             id: s.id ?? s._id,
@@ -39,8 +52,9 @@ export default function StudentScores() {
           }));
           setScores(mapped);
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        console.error('Failed to load scores:', err);
+        toast.error('गुण लोड करता आले नाही');
       }
     };
 
@@ -68,13 +82,38 @@ export default function StudentScores() {
 
   const testHistory = scores;
 
+  const handleReportPdf = () => {
+    const rc = reportData?.reportCard;
+    if (!rc?.subjectGrades?.length) {
+      toast.error('प्रगती पुस्तिका उपलब्ध नाही');
+      return;
+    }
+    downloadReportCardPdf({
+      academicYear: rc.academicYear || '२०२४-२५',
+      term: rc.term || 'वार्षिक',
+      overallGrade: rc.overallGrade,
+      overallPercent: rc.overallPercent,
+      subjectGrades: rc.subjectGrades,
+      teacherComment: rc.teacherComment,
+      attendanceSummary: rc.attendanceSummary,
+      homeworkCompletion: rc.homeworkCompletion,
+      studentProfile: (rc.studentProfile || {}) as Record<string, unknown>,
+    });
+    toast.success('PDF डाउनलोड');
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-primary" /> माझे गुण
-        </h1>
-        <p className="text-sm text-muted-foreground">विषयनिहाय गुण आणि चाचणी इतिहास</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-primary" /> माझे गुण
+          </h1>
+          <p className="text-sm text-muted-foreground">विषयनिहाय गुण आणि चाचणी इतिहास</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleReportPdf}>
+          <Download className="w-4 h-4 mr-1" /> प्रगती PDF
+        </Button>
       </div>
 
       {/* Chart */}

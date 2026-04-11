@@ -7,6 +7,7 @@ import {
   updateUser,
   deleteUser,
   createAnnouncement,
+  getAnnouncements,
   getEnquiries,
   respondToEnquiry,
   markEnquiryAsRead,
@@ -27,6 +28,7 @@ router.patch("/users/:userId", updateUser);
 router.delete("/users/:userId", deleteUser);
 
 // Announcements
+router.get("/announcements", getAnnouncements);
 router.post("/announcements", createAnnouncement);
 
 // Enquiries

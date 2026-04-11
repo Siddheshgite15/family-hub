@@ -23,7 +23,6 @@ const adminLinks = [
   { title: "सर्व वापरकर्ते", url: "/admin/users", icon: Users },
   { title: "प्रश्न", url: "/admin/enquiries", icon: HelpCircle },
   { title: "घोषणा", url: "/admin/announcements", icon: Megaphone },
-  { title: "संदेश", url: "/admin/messages", icon: Mail },
 ];
 
 export default function AdminLayout() {

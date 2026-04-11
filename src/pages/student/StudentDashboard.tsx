@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Gamepad2, BarChart3, BookOpen, Star, Trophy } from 'lucide-react';
+import { Gamepad2, BarChart3, BookOpen, Star, Trophy, Calendar, FileDown } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiCall } from '@/lib/api';
+import { downloadPersonalAttendanceMonthPdf } from '@/lib/schoolPdf';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -28,6 +29,26 @@ export default function StudentDashboard() {
     enabled: !!user,
   });
 
+  const viewerClass = user?.meta?.class ? `&viewerClass=${encodeURIComponent(user.meta.class)}` : '';
+  const { data: eventsData } = useQuery({
+    queryKey: ['student-events', user?.meta?.class],
+    queryFn: () => apiCall(`/events?type=event&audience=students${viewerClass}`),
+    enabled: !!user,
+  });
+
+  const ym = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const attFrom = `${ym}-01`;
+  const attTo = `${ym}-${String(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+
+  const { data: attMonth } = useQuery({
+    queryKey: ['student-attendance', ym],
+    queryFn: () => apiCall(`/attendance?from=${attFrom}&to=${attTo}&limit=400`),
+    enabled: !!user,
+  });
+
   const scores = scoresData?.scores ?? [];
   const homework = homeworkData?.homework ?? [];
   const quizzes = quizzesData?.quizzes ?? [];
@@ -36,6 +57,10 @@ export default function StudentDashboard() {
   const avgScore = scores.length
     ? Math.round(scores.reduce((sum: number, s: any) => sum + (s.score / s.total) * 100, 0) / scores.length)
     : 0;
+
+  const attRows = (attMonth?.attendance ?? []).map((a: any) => ({ date: a.date, status: a.status }));
+  const presentDays = attRows.filter((r: { status: string }) => r.status === 'present').length;
+  const upcomingEvents = eventsData?.events ?? [];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -54,6 +79,50 @@ export default function StudentDashboard() {
           <p className="text-sm text-muted-foreground">{user?.meta?.class} • अनुक्रमांक: {user?.meta?.roll}</p>
         </div>
       </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="portal-card p-5">
+          <h3 className="font-bold mb-2 flex items-center gap-2">
+            <Calendar className="w-4 h-4" /> उपस्थिती ({ym})
+          </h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            नोंदी: {attRows.length} · उपस्थित: {presentDays}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={attRows.length === 0}
+            onClick={() =>
+              downloadPersonalAttendanceMonthPdf({
+                ym,
+                studentName: user?.name || 'विद्यार्थी',
+                roll: user?.meta?.roll || '—',
+                rows: attRows,
+              })
+            }
+          >
+            <FileDown className="w-4 h-4 mr-1" /> मासिक PDF
+          </Button>
+        </div>
+        <div className="portal-card p-5">
+          <h3 className="font-bold mb-2">आगामी कार्यक्रम</h3>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">कोणतेही कार्यक्रम नाहीत</p>
+          ) : (
+            <ul className="text-sm space-y-2">
+              {upcomingEvents.slice(0, 4).map((ev: any) => (
+                <li key={ev.id} className="flex justify-between gap-2 border-b border-border/40 pb-1">
+                  <span>{ev.title}</span>
+                  <span className="text-muted-foreground text-xs whitespace-nowrap">
+                    {ev.date ? new Date(ev.date).toLocaleDateString('mr-IN') : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card text-center">

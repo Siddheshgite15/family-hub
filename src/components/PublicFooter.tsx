@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { GraduationCap, Phone, Mail, MapPin, ArrowRight } from 'lucide-react';
+import { schoolConfig } from '@/config/school';
 
 export function PublicFooter() {
   return (
@@ -16,14 +17,14 @@ export function PublicFooter() {
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="font-bold text-sm text-white leading-tight block">वैनतेय प्राथमिक विद्या मंदिर</span>
-                <span className="text-[10px] text-slate-400 leading-tight">निफाड, नाशिक</span>
+                <span className="font-bold text-sm text-white leading-tight block">{schoolConfig.displayNameMr}</span>
+                <span className="text-[10px] text-slate-400 leading-tight">{schoolConfig.taglineMr}</span>
               </div>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed mb-4">
-              इयत्ता १ ली ते ४ थी — मुलांच्या उज्ज्वल भविष्यासाठी आणि सर्वांगीण विकासासाठी समर्पित संस्था.
+              {schoolConfig.footerBlurbMr}
             </p>
-            <p className="text-xs text-slate-500">न्या. रानडे विद्याप्रसारक मंडळ संचालित</p>
+            <p className="text-xs text-slate-500">{schoolConfig.trusteeLineMr}</p>
           </div>
 
           {/* Quick Links */}
@@ -73,19 +74,28 @@ export function PublicFooter() {
                 <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Phone className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <span className="text-sm text-slate-400">+९१ २२ २३५६ ६८९०</span>
+                <a href={`tel:${schoolConfig.phoneTel}`} className="text-sm text-slate-400 hover:text-white transition-colors">
+                  {schoolConfig.phoneDisplay}
+                </a>
               </li>
               <li className="flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Mail className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <span className="text-sm text-slate-400">info@vainateya.edu</span>
+                <div className="text-sm text-slate-400 space-y-1">
+                  <a href={`mailto:${schoolConfig.emailGeneral}`} className="block hover:text-white transition-colors">
+                    {schoolConfig.emailGeneral}
+                  </a>
+                  <a href={`mailto:${schoolConfig.emailAdmissions}`} className="block hover:text-white transition-colors text-xs">
+                    प्रवेश: {schoolConfig.emailAdmissions}
+                  </a>
+                </div>
               </li>
               <li className="flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <MapPin className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <span className="text-sm text-slate-400 leading-snug">निफाड, ता. निफाड, जि. नाशिक — 422303</span>
+                <span className="text-sm text-slate-400 leading-snug whitespace-pre-line">{schoolConfig.fullAddressMr}</span>
               </li>
             </ul>
           </div>
@@ -94,7 +104,7 @@ export function PublicFooter() {
         {/* Bottom bar */}
         <div className="mt-10 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
-            © २०२५ वैनतेय प्राथमिक विद्या मंदिर. सर्व हक्क राखीव.
+            © {schoolConfig.copyrightYearMr} {schoolConfig.displayNameMr}. सर्व हक्क राखीव.
           </p>
           <Link to="/login" className="text-xs text-primary hover:text-blue-300 transition-colors duration-200 font-medium">
             पोर्टल लॉगिन →

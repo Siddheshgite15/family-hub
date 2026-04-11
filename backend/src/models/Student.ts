@@ -1,5 +1,25 @@
 import mongoose from "mongoose";
 
+const addressSchema = new mongoose.Schema(
+  {
+    line1: { type: String, trim: true, default: "" },
+    line2: { type: String, trim: true, default: "" },
+    city: { type: String, trim: true, default: "" },
+    state: { type: String, trim: true, default: "" },
+    pincode: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+const emergencyContactSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true, default: "" },
+    phone: { type: String, trim: true, default: "" },
+    relation: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
 const studentSchema = new mongoose.Schema(
   {
     name: {
@@ -11,6 +31,8 @@ const studentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    idNumber: { type: String, default: "", trim: true },
+    regNumber: { type: String, default: "", trim: true },
     className: {
       type: String,
       required: true,
@@ -19,6 +41,8 @@ const studentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    motherName: { type: String, default: "", trim: true },
+    fatherName: { type: String, default: "", trim: true },
     studentEmail: {
       type: String,
       required: true,
@@ -45,6 +69,26 @@ const studentSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    dateOfBirth: { type: String, default: "", trim: true },
+    gender: {
+      type: String,
+      enum: ["", "male", "female", "other"],
+      default: "",
+    },
+    address: { type: String, default: "", trim: true },
+    parentPhone: { type: String, default: "", trim: true },
+    alternateGuardianName: { type: String, default: "", trim: true },
+    alternateGuardianPhone: { type: String, default: "", trim: true },
+    admissionDate: { type: String, default: "", trim: true },
+    bloodGroup: { type: String, default: "", trim: true },
+    previousSchool: { type: String, default: "", trim: true },
+    notes: { type: String, default: "", trim: true },
+    studentPhone: { type: String, default: "", trim: true },
+    motherTongue: { type: String, default: "", trim: true },
+    medium: { type: String, default: "", trim: true },
+    udiseNumber: { type: String, default: "", trim: true },
+    mailingAddress: { type: addressSchema, default: () => ({}) },
+    emergencyContact: { type: emergencyContactSchema, default: () => ({}) },
   },
   { timestamps: true }
 );

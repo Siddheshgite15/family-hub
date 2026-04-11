@@ -6,7 +6,6 @@ import {
   Users,
   Calendar,
   FileText,
-  BookOpen,
   Bell,
   LogOut,
   Menu,
@@ -14,6 +13,7 @@ import {
   UserPlus,
   BarChart3,
   ClipboardList,
+  Gamepad2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -28,8 +28,8 @@ const teacherLinks = [
   { title: "गृहपाठ", url: "/teacher/homework", icon: ClipboardList },
   { title: "प्रगती पुस्तक", url: "/teacher/progress", icon: FileText },
   { title: "वर्ग विश्लेषण", url: "/teacher/analytics", icon: BarChart3 },
+  { title: "क्विझ व्यवस्थापन", url: "/teacher/quiz", icon: Gamepad2 },
   { title: "PTM सभा", url: "/teacher/meetings", icon: Calendar },
-  { title: "अभ्यासक्रम", url: "/teacher/lms", icon: BookOpen },
 ];
 
 export default function TeacherLayout() {

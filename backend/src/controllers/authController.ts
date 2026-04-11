@@ -74,7 +74,10 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     console.error("Login error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Login failed",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -104,8 +107,51 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
     const clientUser = toClientUser(user);
 
     res.json({ user: clientUser });
-  } catch (err) {
+  } catch (err: any) {
     console.error("GetMe error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to fetch user profile",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
+  }
+}
+
+/**
+ * POST /api/auth/refresh
+ * Generates a new JWT token using the current authenticated session
+ */
+export async function refreshToken(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    if (user.isActive === false) {
+      res.status(403).json({ error: "Account is deactivated" });
+      return;
+    }
+
+    // Generate new token
+    const token = signToken(user._id.toString(), user.role);
+    const clientUser = toClientUser(user);
+
+    res.json({
+      user: clientUser,
+      token,
+      message: "Token refreshed successfully"
+    });
+  } catch (err: any) {
+    console.error("RefreshToken error:", err);
+    res.status(500).json({
+      error: "Failed to refresh token",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }

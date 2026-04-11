@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Star, Bell, Calendar, MessageSquare } from 'lucide-react';
+import { CheckCircle2, Star, Bell, Calendar, MessageSquare, FileDown } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiCall } from '@/lib/api';
+import { downloadPersonalAttendanceMonthPdf } from '@/lib/schoolPdf';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -20,14 +21,28 @@ export default function ParentDashboard() {
     queryFn: () => apiCall('/meetings'),
   });
 
+  const viewerClass = user?.meta?.class ? `&viewerClass=${encodeURIComponent(user.meta.class)}` : '';
+
   const { data: noticesData } = useQuery({
-    queryKey: ['events-notices'],
-    queryFn: () => apiCall('/events?type=notice&audience=parents'),
+    queryKey: ['events-notices', user?.meta?.class],
+    queryFn: () => apiCall(`/events?type=notice&audience=parents${viewerClass}`),
   });
 
   const { data: eventsData } = useQuery({
-    queryKey: ['events-upcoming'],
-    queryFn: () => apiCall('/events?type=event'),
+    queryKey: ['events-upcoming', user?.meta?.class],
+    queryFn: () => apiCall(`/events?type=event${viewerClass}`),
+  });
+
+  const ym = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const attFrom = `${ym}-01`;
+  const attTo = `${ym}-${String(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+
+  const { data: attMonth } = useQuery({
+    queryKey: ['parent-attendance', ym],
+    queryFn: () => apiCall(`/attendance?from=${attFrom}&to=${attTo}&limit=400`),
   });
 
   const instructions = instructionsData?.instructions ?? [];
@@ -36,6 +51,9 @@ export default function ParentDashboard() {
   const events = eventsData?.events ?? [];
   const scheduledMeetings = meetings.filter((m: any) => m.status === 'नियोजित');
   const nextMeeting = scheduledMeetings[0];
+
+  const attRows = (attMonth?.attendance ?? []).map((a: any) => ({ date: a.date, status: a.status }));
+  const presentDays = attRows.filter((r: { status: string }) => r.status === 'present').length;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -58,6 +76,31 @@ export default function ParentDashboard() {
           </div>
         </div>
       </motion.div>
+
+      <div className="portal-card p-5">
+        <h3 className="font-bold mb-2 flex items-center gap-2">
+          <Calendar className="w-4 h-4" /> उपस्थिती ({ym})
+        </h3>
+        <p className="text-sm text-muted-foreground mb-3">
+          नोंदी: {attRows.length} · उपस्थित दिवस: {presentDays}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={attRows.length === 0}
+          onClick={() =>
+            downloadPersonalAttendanceMonthPdf({
+              ym,
+              studentName: user?.meta?.child || 'विद्यार्थी',
+              roll: user?.meta?.roll || '—',
+              rows: attRows,
+            })
+          }
+        >
+          <FileDown className="w-4 h-4 mr-1" /> मासिक PDF
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card">

@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiCall } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface HomeworkItem {
   id: string;
@@ -17,9 +18,12 @@ interface HomeworkItem {
 export default function ParentHomework() {
   const { user } = useAuth();
   const [homework, setHomework] = useState<HomeworkItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loadHomework = async () => {
+      if (!user) return;
+      setLoading(true);
       try {
         const data = await apiCall('/homework');
         if (Array.isArray(data.homework)) {
@@ -33,13 +37,14 @@ export default function ParentHomework() {
           }));
           setHomework(mapped);
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        console.error('Failed to load homework:', err);
+        toast.error('गृहपाठ लोड करता आला नाही');
+      } finally {
+        setLoading(false);
       }
     };
-    if (user) {
-      loadHomework();
-    }
+    loadHomework();
   }, [user]);
 
   const pending = homework.filter((h) => h.status !== 'completed').length;

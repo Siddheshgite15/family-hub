@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Users, Mail, Megaphone, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiCall } from '@/lib/api';
@@ -16,7 +17,7 @@ export default function AdminDashboard() {
     { label: 'विद्यार्थी', value: stats?.students ?? '—', icon: Users, color: 'text-warning' },
     { label: 'पालक', value: stats?.parents ?? '—', icon: Users, color: 'text-primary' },
     { label: 'नवीन प्रश्न', value: stats?.newEnquiries ?? '—', icon: HelpCircle, color: 'text-destructive' },
-    { label: 'घोषणा', value: stats?.totalAnnouncements ?? '—', icon: Megaphone, color: 'text-success' },
+    { label: 'घोषणा', value: stats?.announcements ?? stats?.totalAnnouncements ?? '—', icon: Megaphone, color: 'text-success' },
   ];
 
   return (
@@ -54,9 +55,21 @@ export default function AdminDashboard() {
       <div className="portal-card p-6">
         <h2 className="text-lg font-semibold mb-4">व्यवस्थापन टूल्स</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Button variant="outline" className="justify-start gap-2"><Users className="w-4 h-4" /> वापरकर्ते व्यवस्थापित करा</Button>
-          <Button variant="outline" className="justify-start gap-2"><Megaphone className="w-4 h-4" /> घोषणा तयार करा</Button>
-          <Button variant="outline" className="justify-start gap-2"><Mail className="w-4 h-4" /> प्रश्नांची उत्तरे द्या</Button>
+          <Button variant="outline" className="justify-start gap-2" asChild>
+            <Link to="/admin/users">
+              <Users className="w-4 h-4" /> वापरकर्ते व्यवस्थापित करा
+            </Link>
+          </Button>
+          <Button variant="outline" className="justify-start gap-2" asChild>
+            <Link to="/admin/announcements">
+              <Megaphone className="w-4 h-4" /> घोषणा तयार करा
+            </Link>
+          </Button>
+          <Button variant="outline" className="justify-start gap-2" asChild>
+            <Link to="/admin/enquiries">
+              <Mail className="w-4 h-4" /> प्रवेश चौकशी पहा
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { PublicNavbar } from '@/components/PublicNavbar';
+import { schoolConfig } from '@/config/school';
+import { submitEnquiry } from '@/lib/api';
+import { buildAdmissionEnquiryPayload } from '@/lib/enquiry';
 import { PublicFooter } from '@/components/PublicFooter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +54,51 @@ const fadeUp = {
 };
 
 export default function Index() {
+  const [inq, setInq] = useState({
+    studentName: '',
+    email: '',
+    grade: '',
+    phone: '',
+    message: '',
+  });
+  const [inqLoading, setInqLoading] = useState(false);
+  const [inqSuccess, setInqSuccess] = useState(false);
+  const [inqError, setInqError] = useState<string | null>(null);
+
+  const onInquirySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInqError(null);
+    setInqSuccess(false);
+    if (!inq.studentName.trim() || !inq.email.trim() || !inq.grade || !inq.phone.trim()) {
+      setInqError('कृपया नाव, ईमेल, इयत्ता आणि फोन भरा.');
+      return;
+    }
+    const built = buildAdmissionEnquiryPayload({
+      studentName: inq.studentName,
+      dob: '',
+      grade: inq.grade,
+      gender: '',
+      parentName: '',
+      phone: inq.phone,
+      email: inq.email,
+      message: inq.message,
+    });
+    if ('error' in built) {
+      setInqError(built.error);
+      return;
+    }
+    setInqLoading(true);
+    try {
+      await submitEnquiry(built);
+      setInqSuccess(true);
+      setInq({ studentName: '', email: '', grade: '', phone: '', message: '' });
+    } catch (err: unknown) {
+      setInqError(err instanceof Error ? err.message : 'चौकशी पाठवता आली नाही.');
+    } finally {
+      setInqLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <PublicNavbar />
@@ -82,17 +131,17 @@ export default function Index() {
               transition={{ delay: 0.2, duration: 0.7 }}
             >
               <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse flex-shrink-0" />
-              इयत्ता १ ली ते ४ थी &bull; न्या. रानडे विद्याप्रसारक मंडळ संचालित, निफाड
+              {schoolConfig.heroBadgeMr}
             </motion.span>
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-4 drop-shadow-2xl">
-              वैनतेय प्राथमिक<br />
-              <span className="text-gradient">विद्या मंदिर</span>
+              {schoolConfig.heroTitleBaseMr}<br />
+              <span className="text-gradient">{schoolConfig.heroTitleAccentMr}</span>
             </h1>
 
-            <p className="text-lg md:text-xl text-white/80 mb-2 font-medium">निफाड, ता. निफाड, जि. नाशिक</p>
+            <p className="text-lg md:text-xl text-white/80 mb-2 font-medium">{schoolConfig.locationLineMr}</p>
             <p className="max-w-xl mx-auto text-sm md:text-base text-white/55 mb-12 leading-relaxed">
-              मुलांच्या सर्वांगीण विकासासाठी पोषक वातावरण आणि उच्च दर्जाचे प्राथमिक शिक्षण.
+              {schoolConfig.heroSubtitleMr}
             </p>
 
             <div className="flex flex-wrap justify-center gap-4">
@@ -357,9 +406,9 @@ export default function Index() {
                 </p>
                 <div className="space-y-4">
                   {[
-                    { Icon: Phone,  label: 'फोन',  value: '+९१ २२ २३५६ ६८९०', bg: 'bg-blue-50 text-blue-600' },
-                    { Icon: Mail,   label: 'ईमेल', value: 'info@vainateya.edu',              bg: 'bg-indigo-50 text-indigo-600' },
-                    { Icon: MapPin, label: 'पत्ता', value: 'निफाड, ता. निफाड, जि. नाशिक',   bg: 'bg-violet-50 text-violet-600' },
+                    { Icon: Phone,  label: 'फोन',  value: schoolConfig.phoneDisplay, bg: 'bg-blue-50 text-blue-600' },
+                    { Icon: Mail,   label: 'ईमेल', value: schoolConfig.emailGeneral, bg: 'bg-indigo-50 text-indigo-600' },
+                    { Icon: MapPin, label: 'पत्ता', value: schoolConfig.locationLineMr, bg: 'bg-violet-50 text-violet-600' },
                   ].map(({ Icon, label, value, bg }) => (
                     <div key={label} className="flex items-center gap-4 group">
                       <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300`}>
@@ -386,12 +435,33 @@ export default function Index() {
                 {/* Top accent */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-primary rounded-t-2xl" />
                 <h3 className="font-bold text-lg mb-5 text-foreground">चौकशी अर्ज</h3>
-                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                {inqSuccess && (
+                  <p className="mb-4 text-sm text-green-700 bg-green-100 rounded-lg px-3 py-2 text-center">
+                    चौकशी यशस्वीरीत्या पाठवली. लवकरच संपर्क करू.
+                  </p>
+                )}
+                {inqError && (
+                  <p className="mb-4 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2 text-center">
+                    {inqError}
+                  </p>
+                )}
+                <form className="space-y-4" onSubmit={onInquirySubmit}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input placeholder="विद्यार्थ्याचे पूर्ण नाव" className="h-11 rounded-xl" />
-                    <Input placeholder="email@example.com" type="email" className="h-11 rounded-xl" />
-                    <Select>
-                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="इयत्ता निवडा" /></SelectTrigger>
+                    <Input
+                      placeholder="विद्यार्थ्याचे पूर्ण नाव *"
+                      className="h-11 rounded-xl"
+                      value={inq.studentName}
+                      onChange={(e) => setInq((p) => ({ ...p, studentName: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="email@example.com *"
+                      type="email"
+                      className="h-11 rounded-xl"
+                      value={inq.email}
+                      onChange={(e) => setInq((p) => ({ ...p, email: e.target.value }))}
+                    />
+                    <Select value={inq.grade} onValueChange={(val) => setInq((p) => ({ ...p, grade: val }))}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="इयत्ता निवडा *" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">इयत्ता १ ली</SelectItem>
                         <SelectItem value="2">इयत्ता २ री</SelectItem>
@@ -399,11 +469,30 @@ export default function Index() {
                         <SelectItem value="4">इयत्ता ४ थी</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input placeholder="+91 XXXXXXXXXX" type="tel" className="h-11 rounded-xl" />
+                    <Input
+                      placeholder="फोन (१० अंक) *"
+                      type="tel"
+                      className="h-11 rounded-xl"
+                      value={inq.phone}
+                      onChange={(e) => setInq((p) => ({ ...p, phone: e.target.value }))}
+                      required
+                      pattern="[0-9]{10}"
+                    />
                   </div>
-                  <Textarea placeholder="अधिक माहिती किंवा प्रश्न..." rows={4} className="resize-none rounded-xl" />
-                  <Button className="w-full h-11 gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl" size="lg">
-                    चौकशी पाठवा <ArrowRight className="w-4 h-4" />
+                  <Textarea
+                    placeholder="अधिक माहिती किंवा प्रश्न..."
+                    rows={4}
+                    className="resize-none rounded-xl"
+                    value={inq.message}
+                    onChange={(e) => setInq((p) => ({ ...p, message: e.target.value }))}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full h-11 gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl"
+                    size="lg"
+                    disabled={inqLoading}
+                  >
+                    {inqLoading ? 'पाठवत आहे...' : 'चौकशी पाठवा'} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </form>
               </motion.div>

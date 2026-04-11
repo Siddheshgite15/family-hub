@@ -1,5 +1,53 @@
 import mongoose from "mongoose";
 
+const snapshotAddressSchema = new mongoose.Schema(
+  {
+    line1: { type: String, default: "" },
+    line2: { type: String, default: "" },
+    city: { type: String, default: "" },
+    state: { type: String, default: "" },
+    pincode: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
+const snapshotEmergencySchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    relation: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
+/** Frozen copy of student enrollment at report generation (for print/PDF). */
+const enrollmentSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "" },
+    roll: { type: String, default: "" },
+    className: { type: String, default: "" },
+    parentName: { type: String, default: "" },
+    studentEmail: { type: String, default: "" },
+    parentEmail: { type: String, default: "" },
+    dateOfBirth: { type: String, default: "" },
+    gender: { type: String, default: "" },
+    address: { type: String, default: "" },
+    studentPhone: { type: String, default: "" },
+    parentPhone: { type: String, default: "" },
+    motherName: { type: String, default: "" },
+    fatherName: { type: String, default: "" },
+    admissionDate: { type: String, default: "" },
+    bloodGroup: { type: String, default: "" },
+    previousSchool: { type: String, default: "" },
+    alternateGuardianName: { type: String, default: "" },
+    alternateGuardianPhone: { type: String, default: "" },
+    notes: { type: String, default: "" },
+    mailingAddress: { type: snapshotAddressSchema, default: () => ({}) },
+    emergencyContact: { type: snapshotEmergencySchema, default: () => ({}) },
+  },
+  { _id: false }
+);
+
 const subjectGradeSchema = new mongoose.Schema({
   subject: { type: String, required: true },
   grade: { type: String, required: true },
@@ -55,6 +103,7 @@ const reportCardSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    enrollmentSnapshot: { type: enrollmentSnapshotSchema, default: undefined },
   },
   { timestamps: true }
 );

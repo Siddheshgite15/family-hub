@@ -1,8 +1,47 @@
 import { Request, Response } from "express";
-import { Score, Student, ReportCard } from "../models";
+import mongoose from "mongoose";
+import { Score, Student, ReportCard, Attendance, Homework, HomeworkStatus } from "../models";
 import { AuthRequest } from "../middleware/auth";
 import { getMetaValue } from "../utils/auth";
+import { studentProfileForReportCard } from "../utils/studentProfile";
+import { enrollmentSnapshotFromStudent } from "../utils/reportCardSnapshot";
 import { z } from "zod";
+
+const emptyAttendance = () => ({
+  totalDays: 0,
+  presentDays: 0,
+  absentDays: 0,
+  lateDays: 0,
+});
+
+const emptyHomework = () => ({ total: 0, completed: 0 });
+
+async function summarizeAttendance(studentId: mongoose.Types.ObjectId) {
+  const records = await Attendance.find({ studentId });
+  let presentDays = 0;
+  let absentDays = 0;
+  let lateDays = 0;
+  for (const r of records) {
+    if (r.status === "present") presentDays += 1;
+    else if (r.status === "absent") absentDays += 1;
+    else if (r.status === "late") lateDays += 1;
+  }
+  return {
+    totalDays: records.length,
+    presentDays,
+    absentDays,
+    lateDays,
+  };
+}
+
+async function summarizeHomework(studentId: mongoose.Types.ObjectId, className: string) {
+  const total = await Homework.countDocuments({ className });
+  const completed = await HomeworkStatus.countDocuments({
+    studentId,
+    status: { $in: ["completed", "submitted", "late"] },
+  });
+  return { total, completed };
+}
 
 const ScoreSchema = z.object({
   studentId: z.string(),
@@ -27,6 +66,20 @@ const SaveReportCardSchema = z.object({
     })
   ),
   teacherComment: z.string().optional(),
+  attendanceSummary: z
+    .object({
+      totalDays: z.number().min(0).optional(),
+      presentDays: z.number().min(0).optional(),
+      absentDays: z.number().min(0).optional(),
+      lateDays: z.number().min(0).optional(),
+    })
+    .optional(),
+  homeworkCompletion: z
+    .object({
+      total: z.number().min(0).optional(),
+      completed: z.number().min(0).optional(),
+    })
+    .optional(),
 });
 
 // ──────────────────────────────────────────────
@@ -155,10 +208,13 @@ export async function listReportCards(req: AuthRequest, res: Response): Promise<
         const students = await Student.find({ className: teacherClass }).select("_id");
         query.studentId = { $in: students.map((s) => s._id) };
       }
+    } else if (req.user.role !== "admin") {
+      res.status(403).json({ error: "Not allowed" });
+      return;
     }
 
     const reportCards = await ReportCard.find(query)
-      .populate("studentId", "name roll className parentName")
+      .populate("studentId")
       .sort({ createdAt: -1 });
 
     const items = reportCards.map((r: any) => ({
@@ -173,13 +229,19 @@ export async function listReportCards(req: AuthRequest, res: Response): Promise<
       overallPercent: r.overallPercent,
       subjectGrades: r.subjectGrades,
       teacherComment: r.teacherComment,
+      attendanceSummary: r.attendanceSummary ?? emptyAttendance(),
+      homeworkCompletion: r.homeworkCompletion ?? emptyHomework(),
+      studentProfile: studentProfileForReportCard(r.studentId, r.enrollmentSnapshot),
       generatedAt: r.createdAt,
     }));
 
     res.json({ reportCards: items });
-  } catch (err) {
-    console.error("ListReportCards error:", err);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err: any) {
+    console.error("GetReportCard error:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch report card",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -193,7 +255,7 @@ export async function saveReportCard(req: AuthRequest, res: Response): Promise<v
     }
 
     const body = SaveReportCardSchema.parse(req.body);
-    const { studentId, term, subjectGrades, teacherComment } = body;
+    const { studentId, term, subjectGrades, teacherComment, attendanceSummary: attBody, homeworkCompletion: hwBody } = body;
     const academicYear = body.academicYear || "२०२४-२५";
 
     const student = await Student.findById(studentId);
@@ -215,7 +277,15 @@ export async function saveReportCard(req: AuthRequest, res: Response): Promise<v
       overallPercent >= 60 ? "B+" :
       overallPercent >= 50 ? "B" : "C";
 
+    const [attDb, hwDb] = await Promise.all([
+      summarizeAttendance(student._id),
+      summarizeHomework(student._id, student.className),
+    ]);
+    const attendanceSummary = { ...emptyAttendance(), ...attDb, ...(attBody ?? {}) };
+    const homeworkCompletion = { ...emptyHomework(), ...hwDb, ...(hwBody ?? {}) };
+
     // Upsert (one report card per student per term per year)
+    const snap = enrollmentSnapshotFromStudent(student.toObject() as Record<string, unknown>);
     const reportCard = await ReportCard.findOneAndUpdate(
       { studentId, term, academicYear },
       {
@@ -228,6 +298,9 @@ export async function saveReportCard(req: AuthRequest, res: Response): Promise<v
         overallPercent,
         teacherComment: teacherComment || "",
         generatedByTeacherId: req.user._id,
+        enrollmentSnapshot: snap,
+        attendanceSummary,
+        homeworkCompletion,
       },
       { upsert: true, new: true }
     );
@@ -245,6 +318,9 @@ export async function saveReportCard(req: AuthRequest, res: Response): Promise<v
         overallGrade,
         overallPercent,
         teacherComment,
+        attendanceSummary: reportCard.attendanceSummary ?? emptyAttendance(),
+        homeworkCompletion: reportCard.homeworkCompletion ?? emptyHomework(),
+        studentProfile: studentProfileForReportCard(student, reportCard.enrollmentSnapshot),
         generatedAt: reportCard.createdAt,
       }
     });
@@ -307,6 +383,17 @@ export async function generateAllReportCards(req: AuthRequest, res: Response): P
         overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" :
         overallPercent >= 50 ? "B" : "C";
 
+      const enrollmentSnapshot = enrollmentSnapshotFromStudent(
+        student.toObject() as Record<string, unknown>
+      );
+
+      const [attDb, hwDb] = await Promise.all([
+        summarizeAttendance(student._id),
+        summarizeHomework(student._id, student.className),
+      ]);
+      const attendanceSummary = { ...emptyAttendance(), ...attDb };
+      const homeworkCompletion = { ...emptyHomework(), ...hwDb };
+
       const rc = await ReportCard.findOneAndUpdate(
         { studentId: student._id, term, academicYear },
         {
@@ -319,6 +406,9 @@ export async function generateAllReportCards(req: AuthRequest, res: Response): P
           overallPercent,
           teacherComment: "",
           generatedByTeacherId: req.user._id,
+          enrollmentSnapshot,
+          attendanceSummary,
+          homeworkCompletion,
         },
         { upsert: true, new: true }
       );
@@ -334,6 +424,9 @@ export async function generateAllReportCards(req: AuthRequest, res: Response): P
         subjectGrades,
         overallGrade,
         overallPercent,
+        attendanceSummary: rc.attendanceSummary ?? emptyAttendance(),
+        homeworkCompletion: rc.homeworkCompletion ?? emptyHomework(),
+        studentProfile: studentProfileForReportCard(student, rc.enrollmentSnapshot),
         generatedAt: rc.createdAt,
       });
     }
@@ -394,6 +487,14 @@ export async function generateReportCard(req: AuthRequest, res: Response): Promi
       overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" :
       overallPercent >= 50 ? "B" : "C";
 
+    const snap = enrollmentSnapshotFromStudent(student.toObject() as Record<string, unknown>);
+    const [attDb, hwDb] = await Promise.all([
+      summarizeAttendance(student._id),
+      summarizeHomework(student._id, student.className),
+    ]);
+    const attendanceSummary = { ...emptyAttendance(), ...attDb };
+    const homeworkCompletion = { ...emptyHomework(), ...hwDb };
+
     const rc = await ReportCard.findOneAndUpdate(
       { studentId, term, academicYear },
       {
@@ -406,6 +507,9 @@ export async function generateReportCard(req: AuthRequest, res: Response): Promi
         overallPercent,
         teacherComment: "",
         generatedByTeacherId: req.user._id,
+        enrollmentSnapshot: snap,
+        attendanceSummary,
+        homeworkCompletion,
       },
       { upsert: true, new: true }
     );
@@ -423,6 +527,9 @@ export async function generateReportCard(req: AuthRequest, res: Response): Promi
         subjectGrades,
         overallGrade,
         overallPercent,
+        attendanceSummary: rc.attendanceSummary ?? emptyAttendance(),
+        homeworkCompletion: rc.homeworkCompletion ?? emptyHomework(),
+        studentProfile: studentProfileForReportCard(student, rc.enrollmentSnapshot),
         generatedAt: rc.createdAt,
       }
     });
@@ -459,6 +566,10 @@ export async function getStudentReportCard(req: AuthRequest, res: Response): Pro
       if (teacherClass && student.className !== teacherClass) {
         res.status(403).json({ error: "Student not in your class" }); return;
       }
+    } else if (req.user.role === "admin") {
+      // full access
+    } else {
+      res.status(403).json({ error: "Not allowed" }); return;
     }
 
     const query: any = { studentId };
@@ -484,12 +595,20 @@ export async function getStudentReportCard(req: AuthRequest, res: Response): Pro
         ? Math.round(subjectGrades.reduce((s, g) => s + g.scorePercent, 0) / subjectGrades.length) : 0;
       const overallGrade = overallPercent >= 90 ? "A+" : overallPercent >= 80 ? "A" : overallPercent >= 70 ? "A-" : overallPercent >= 60 ? "B+" : overallPercent >= 50 ? "B" : "C";
 
+      const [attDb, hwDb] = await Promise.all([
+        summarizeAttendance(student._id),
+        summarizeHomework(student._id, student.className),
+      ]);
+
       res.json({
         reportCard: {
           studentId, studentName: student.name, studentRoll: student.roll,
           parentName: student.parentName, className: student.className,
           term: "वार्षिक", academicYear: "२०२४-२५",
           subjectGrades, overallGrade, overallPercent, teacherComment: "",
+          attendanceSummary: { ...emptyAttendance(), ...attDb },
+          homeworkCompletion: { ...emptyHomework(), ...hwDb },
+          studentProfile: studentProfileForReportCard(student, null),
         }
       });
       return;
@@ -505,6 +624,9 @@ export async function getStudentReportCard(req: AuthRequest, res: Response): Pro
         subjectGrades: r.subjectGrades,
         overallGrade: r.overallGrade, overallPercent: r.overallPercent,
         teacherComment: r.teacherComment,
+        attendanceSummary: r.attendanceSummary ?? emptyAttendance(),
+        homeworkCompletion: r.homeworkCompletion ?? emptyHomework(),
+        studentProfile: studentProfileForReportCard(student, r.enrollmentSnapshot),
         generatedAt: r.createdAt,
       }
     });

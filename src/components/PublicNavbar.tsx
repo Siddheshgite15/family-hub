@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { schoolConfig } from '@/config/school';
 import { GraduationCap, Menu, X, LogIn } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -37,10 +38,10 @@ export function PublicNavbar() {
             <GraduationCap className="w-5 h-5 text-white" />
           </div>
           <div className="hidden sm:block">
-            <span className="font-bold text-sm text-foreground leading-tight block">वैनतेय प्राथमिक विद्या मंदिर</span>
-            <span className="text-[10px] text-muted-foreground leading-tight">निफाड, नाशिक</span>
+            <span className="font-bold text-sm text-foreground leading-tight block">{schoolConfig.displayNameMr}</span>
+            <span className="text-[10px] text-muted-foreground leading-tight">{schoolConfig.taglineMr}</span>
           </div>
-          <span className="sm:hidden font-bold text-sm text-foreground">वैनतेय</span>
+          <span className="sm:hidden font-bold text-sm text-foreground">{schoolConfig.shortNameMr}</span>
         </Link>
 
         {/* Desktop nav */}

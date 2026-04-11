@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { PublicNavbar } from '@/components/PublicNavbar';
 import { PublicFooter } from '@/components/PublicFooter';
+import { schoolConfig } from '@/config/school';
+import { submitEnquiry } from '@/lib/api';
+import { buildAdmissionEnquiryPayload } from '@/lib/enquiry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,24 +32,31 @@ export default function Admissions() {
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(false);
 
-    // Basic validation
-    if (!formData.studentName || !formData.phone || !formData.grade) {
-      alert("कृपया आवश्यक माहिती भरा.");
+    if (!formData.studentName || !formData.phone || !formData.grade || !formData.email.trim()) {
+      setError("कृपया विद्यार्थ्याचे नाव, ईमेल, फोन आणि इयत्ता भरा.");
+      return;
+    }
+
+    const built = buildAdmissionEnquiryPayload(formData);
+    if ("error" in built) {
+      setError(built.error);
       return;
     }
 
     setLoading(true);
-
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await submitEnquiry(built);
       setSuccess(true);
       setFormData({
         studentName: "",
@@ -58,7 +68,12 @@ export default function Admissions() {
         email: "",
         message: ""
       });
-    }, 1500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "अर्ज सादर करता आला नाही.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -73,7 +88,7 @@ export default function Admissions() {
             प्रवेश <span className="text-primary">प्रक्रिया</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            वैनतेय प्राथमिक विद्या मंदिरमध्ये प्रवेशासाठी खालील सोप्या पायऱ्या अनुसरा.
+            {schoolConfig.displayNameMr} मध्ये प्रवेशासाठी खालील सोप्या पायऱ्या अनुसरा.
           </p>
         </motion.div>
 
@@ -103,7 +118,12 @@ export default function Admissions() {
 
           {success && (
             <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg text-center">
-              ✅ अर्ज यशस्वीरीत्या सादर झाला!
+              ✅ अर्ज यशस्वीरीत्या सादर झाला! लवकरच संपर्क करू.
+            </div>
+          )}
+          {error && (
+            <div className="mb-6 p-4 bg-destructive/10 text-destructive rounded-lg text-center text-sm">
+              {error}
             </div>
           )}
 
@@ -114,6 +134,7 @@ export default function Admissions() {
                 placeholder="विद्यार्थ्याचे पूर्ण नाव *"
                 value={formData.studentName}
                 onChange={(e) => handleChange("studentName", e.target.value)}
+                required
               />
 
               <Input
@@ -155,14 +176,17 @@ export default function Admissions() {
                 placeholder="संपर्क क्रमांक *"
                 value={formData.phone}
                 onChange={(e) => handleChange("phone", e.target.value)}
+                required
+                pattern="[0-9]{10}"
               />
 
               <Input
                 type="email"
-                placeholder="ईमेल"
+                placeholder="ईमेल *"
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
                 className="md:col-span-2"
+                required
               />
             </div>
 

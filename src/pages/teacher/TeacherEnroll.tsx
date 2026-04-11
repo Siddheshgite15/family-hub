@@ -1,18 +1,38 @@
-import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth, type EnrollPayload } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus, Copy, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Copy, CheckCircle2, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { apiCall } from '@/lib/api';
+
+const CLASS_OPTIONS = [
+  'इयत्ता १-अ',
+  'इयत्ता १-ब',
+  'इयत्ता २-अ',
+  'इयत्ता २-ब',
+  'इयत्ता ३-अ',
+  'इयत्ता ३-ब',
+  'इयत्ता ४-अ',
+  'इयत्ता ४-ब',
+];
 
 export default function TeacherEnroll() {
-  const { enrolledStudents, enrollStudent, user } = useAuth();
-  const [name, setName] = useState('');
-  const [parentName, setParentName] = useState('');
-  const [className, setClassName] = useState(user?.meta?.class || '');
+  const { enrollStudent, user } = useAuth();
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [lastEnrolled, setLastEnrolled] = useState<{
     name: string;
     studentEmail: string;
@@ -21,21 +41,103 @@ export default function TeacherEnroll() {
     parentPassword: string;
   } | null>(null);
 
-  const handleEnroll = async (e: React.FormEvent) => {
+  const [form, setForm] = useState<EnrollPayload>({
+    name: '',
+    parentName: '',
+    className: user?.meta?.class || '',
+    motherName: '',
+    fatherName: '',
+    roll: '',
+    idNumber: '',
+    regNumber: '',
+    dateOfBirth: '',
+    gender: '',
+    address: '',
+    parentPhone: '',
+    admissionDate: '',
+    bloodGroup: '',
+    previousSchool: '',
+    notes: '',
+    studentPhone: '',
+    motherTongue: '',
+    medium: '',
+    udiseNumber: '',
+    mailingAddress: { line1: '', line2: '', city: '', state: '', pincode: '' },
+    emergencyContact: { name: '', phone: '', relation: '' },
+    alternateGuardianName: '',
+    alternateGuardianPhone: '',
+  });
+
+  useEffect(() => {
+    const c = user?.meta?.class;
+    if (c) setForm((f) => ({ ...f, className: c }));
+  }, [user?.meta?.class]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['teacher-enroll-students'],
+    queryFn: () => apiCall('/students?limit=100'),
+  });
+
+  const students: { id: string; name: string; roll: string; class?: string }[] =
+    data?.students ?? [];
+
+  const resetForm = () => {
+    setForm({
+      name: '',
+      parentName: '',
+      className: user?.meta?.class || '',
+      motherName: '',
+      fatherName: '',
+      roll: '',
+      idNumber: '',
+      regNumber: '',
+      dateOfBirth: '',
+      gender: '',
+      address: '',
+      parentPhone: '',
+      admissionDate: '',
+      bloodGroup: '',
+      previousSchool: '',
+      notes: '',
+      studentPhone: '',
+      motherTongue: '',
+      medium: '',
+      udiseNumber: '',
+      mailingAddress: { line1: '', line2: '', city: '', state: '', pincode: '' },
+      emergencyContact: { name: '', phone: '', relation: '' },
+      alternateGuardianName: '',
+      alternateGuardianPhone: '',
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !parentName || !className) {
-      toast.error('कृपया सर्व माहिती भरा');
+    const className = (form.className || user?.meta?.class || '').trim();
+    if (!form.name?.trim() || !form.parentName?.trim() || !className) {
+      toast.error('कृपया नाव, पालक आणि वर्ग भरा');
       return;
     }
     try {
-      const result = await enrollStudent(name, parentName, className);
-      setLastEnrolled(result);
-      setName('');
-      setParentName('');
-      setClassName('');
+      const payload: EnrollPayload = {
+        ...form,
+        className,
+        roll: form.roll?.trim() || undefined,
+        gender: form.gender || undefined,
+      };
+      const result = await enrollStudent(payload);
+      setLastEnrolled({
+        name: result.name,
+        studentEmail: result.studentEmail,
+        studentPassword: result.studentPassword,
+        parentEmail: result.parentEmail,
+        parentPassword: result.parentPassword,
+      });
+      qc.invalidateQueries({ queryKey: ['teacher-enroll-students'] });
+      setDialogOpen(false);
+      resetForm();
       toast.success(`${result.name} यशस्वीरित्या नोंदणी झाली!`);
     } catch {
-      toast.error('नोंदणी अयशस्वी झाली. कृपया पुन्हा प्रयत्न करा.');
+      toast.error('नोंदणी अयशस्वी. कृपया पुन्हा प्रयत्न करा.');
     }
   };
 
@@ -44,117 +146,378 @@ export default function TeacherEnroll() {
     toast.success('कॉपी झाले!');
   };
 
+  const classLocked = !!user?.meta?.class;
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <UserPlus className="w-6 h-6 text-primary" /> नवीन विद्यार्थी नोंदणी
-        </h1>
-        <p className="text-sm text-muted-foreground">विद्यार्थ्याची माहिती भरा. लॉगिन तपशील स्वयंचलितपणे तयार होतील.</p>
+    <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="flex flex-wrap justify-end gap-3">
+        <Button type="button" onClick={() => setDialogOpen(true)}>
+          <UserPlus className="w-4 h-4 mr-2" /> नवीन जोडा
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Enrollment Form */}
-        <div className="portal-card p-6">
-          <h3 className="font-bold mb-4">📝 नोंदणी फॉर्म</h3>
-          <form onSubmit={handleEnroll} className="space-y-4">
-            <div className="space-y-2">
-              <Label>विद्यार्थ्याचे पूर्ण नाव</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="उदा. आरव पाटील" required />
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>नवीन विद्यार्थी — संपूर्ण फॉर्म</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>विद्यार्थ्याचे नाव *</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>पालकाचे नाव *</Label>
+                <Input
+                  value={form.parentName}
+                  onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>आईचे नाव</Label>
+                <Input
+                  value={form.motherName || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, motherName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>वडिलांचे नाव</Label>
+                <Input
+                  value={form.fatherName || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, fatherName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>अनुक्रमांक (रिकामे = आपोआप)</Label>
+                <Input
+                  value={form.roll || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, roll: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>आय.डी. क्रमांक</Label>
+                <Input
+                  value={form.idNumber || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, idNumber: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>नोंदणी क्रमांक</Label>
+                <Input
+                  value={form.regNumber || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, regNumber: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>UDISE क्रमांक</Label>
+                <Input
+                  value={form.udiseNumber || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, udiseNumber: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>वर्ग *</Label>
+                <Select
+                  value={form.className}
+                  onValueChange={(v) => setForm((f) => ({ ...f, className: v }))}
+                  disabled={classLocked}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="इयत्ता" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLASS_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>जन्मतारीख</Label>
+                <Input
+                  type="date"
+                  value={form.dateOfBirth || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>लिंग</Label>
+                <Select
+                  value={form.gender || '__none__'}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, gender: v === '__none__' ? '' : v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="निवडा" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">—</SelectItem>
+                    <SelectItem value="male">पुरुष</SelectItem>
+                    <SelectItem value="female">स्त्री</SelectItem>
+                    <SelectItem value="other">इतर</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>मातृभाषा</Label>
+                <Input
+                  value={form.motherTongue || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, motherTongue: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>माध्यम</Label>
+                <Input
+                  value={form.medium || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, medium: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>रक्तगट</Label>
+                <Input
+                  value={form.bloodGroup || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, bloodGroup: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>प्रवेश तारीख</Label>
+                <Input
+                  type="date"
+                  value={form.admissionDate || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, admissionDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label>पत्ता</Label>
+                <Textarea
+                  rows={2}
+                  value={form.address || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>पालक फोन</Label>
+                <Input
+                  value={form.parentPhone || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, parentPhone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>विद्यार्थी फोन</Label>
+                <Input
+                  value={form.studentPhone || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, studentPhone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label>मागील शाळा</Label>
+                <Input
+                  value={form.previousSchool || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, previousSchool: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>पर्यायी पालक / संरक्षक</Label>
+                <Input
+                  value={form.alternateGuardianName || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, alternateGuardianName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>त्यांचा फोन</Label>
+                <Input
+                  value={form.alternateGuardianPhone || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, alternateGuardianPhone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-muted-foreground">पत्र पत्ता</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="ओळ 1"
+                    value={form.mailingAddress?.line1 || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mailingAddress: { ...f.mailingAddress!, line1: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="ओळ 2"
+                    value={form.mailingAddress?.line2 || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mailingAddress: { ...f.mailingAddress!, line2: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="शहर"
+                    value={form.mailingAddress?.city || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mailingAddress: { ...f.mailingAddress!, city: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="राज्य"
+                    value={form.mailingAddress?.state || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mailingAddress: { ...f.mailingAddress!, state: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    className="col-span-2"
+                    placeholder="पिन कोड"
+                    value={form.mailingAddress?.pincode || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        mailingAddress: { ...f.mailingAddress!, pincode: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label>आपत्कालीन संपर्क</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="नाव"
+                    value={form.emergencyContact?.name || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        emergencyContact: { ...f.emergencyContact!, name: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="फोन"
+                    value={form.emergencyContact?.phone || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        emergencyContact: { ...f.emergencyContact!, phone: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="नाते"
+                    value={form.emergencyContact?.relation || ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        emergencyContact: { ...f.emergencyContact!, relation: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label>टिपा</Label>
+                <Textarea
+                  rows={2}
+                  value={form.notes || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>पालकाचे नाव</Label>
-              <Input value={parentName} onChange={(e) => setParentName(e.target.value)} placeholder="उदा. सौ. पाटील" required />
-            </div>
-            <div className="space-y-2">
-              <Label>इयत्ता</Label>
-              <Select value={className} onValueChange={setClassName} disabled={!!user?.meta?.class}>
-                <SelectTrigger><SelectValue placeholder="इयत्ता निवडा" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="इयत्ता १-अ">इयत्ता १-अ</SelectItem>
-                  <SelectItem value="इयत्ता १-ब">इयत्ता १-ब</SelectItem>
-                  <SelectItem value="इयत्ता २-अ">इयत्ता २-अ</SelectItem>
-                  <SelectItem value="इयत्ता २-ब">इयत्ता २-ब</SelectItem>
-                  <SelectItem value="इयत्ता ३-अ">इयत्ता ३-अ</SelectItem>
-                  <SelectItem value="इयत्ता ३-ब">इयत्ता ३-ब</SelectItem>
-                  <SelectItem value="इयत्ता ४-अ">इयत्ता ४-अ</SelectItem>
-                  <SelectItem value="इयत्ता ४-ब">इयत्ता ४-ब</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" className="w-full">
-              <UserPlus className="w-4 h-4 mr-2" /> विद्यार्थी नोंदणी करा
-            </Button>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                रद्द
+              </Button>
+              <Button type="submit">नोंदणी करा</Button>
+            </DialogFooter>
           </form>
-        </div>
+        </DialogContent>
+      </Dialog>
 
-        {/* Generated Credentials */}
-        {lastEnrolled && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="portal-card p-6 border-success/30">
-            <h3 className="font-bold mb-4 flex items-center gap-2 text-success">
-              <CheckCircle2 className="w-5 h-5" /> नोंदणी यशस्वी!
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              खालील लॉगिन तपशील विद्यार्थी आणि पालकांना द्या:
+      {lastEnrolled && (
+        <div className="portal-card p-4 border-success/30 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2 text-success">
+              <CheckCircle2 className="w-4 h-4" /> {lastEnrolled.name} — लॉगिन तपशील
             </p>
-            
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-secondary/50">
-                <p className="text-xs font-medium text-muted-foreground mb-2">📚 विद्यार्थी लॉगिन</p>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm">ईमेल: <span className="font-mono font-medium">{lastEnrolled.studentEmail}</span></p>
-                    <p className="text-sm">पासवर्ड: <span className="font-mono font-medium">{lastEnrolled.studentPassword}</span></p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => copyToClipboard(`Email: ${lastEnrolled.studentEmail}\nPassword: ${lastEnrolled.studentPassword}`)}>
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
+              विद्यार्थी: {lastEnrolled.studentEmail} / {lastEnrolled.studentPassword}
+            </p>
+            <p className="text-xs text-muted-foreground font-mono">
+              पालक: {lastEnrolled.parentEmail} / {lastEnrolled.parentPassword}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              copyToClipboard(
+                `Student: ${lastEnrolled.studentEmail} / ${lastEnrolled.studentPassword}\nParent: ${lastEnrolled.parentEmail} / ${lastEnrolled.parentPassword}`
+              )
+            }
+          >
+            <Copy className="w-4 h-4 mr-1" /> कॉपी
+          </Button>
+        </div>
+      )}
 
-              <div className="p-4 rounded-lg bg-secondary/50">
-                <p className="text-xs font-medium text-muted-foreground mb-2">👨‍👩‍👧 पालक लॉगिन</p>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm">ईमेल: <span className="font-mono font-medium">{lastEnrolled.parentEmail}</span></p>
-                    <p className="text-sm">पासवर्ड: <span className="font-mono font-medium">{lastEnrolled.parentPassword}</span></p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => copyToClipboard(`Email: ${lastEnrolled.parentEmail}\nPassword: ${lastEnrolled.parentPassword}`)}>
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Enrolled Students List */}
-      <div className="portal-card p-5">
-        <h3 className="font-bold mb-4">📋 नोंदणीकृत विद्यार्थी ({enrolledStudents.length})</h3>
+      <div className="portal-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex justify-between items-center">
+          <span className="font-medium text-sm">नोंदणीकृत विद्यार्थी</span>
+          <span className="text-xs text-muted-foreground">
+            {isLoading ? '…' : `${students.length} एकूण`}
+          </span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">अ.क्र.</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">विद्यार्थ्याचे नाव</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">इयत्ता</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">पालकाचे नाव</th>
-                <th className="text-left p-3 text-xs font-medium text-muted-foreground">विद्यार्थी ईमेल</th>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="text-left p-3 font-medium text-muted-foreground w-24">रोल</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">नाव</th>
+                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
-              {enrolledStudents.map((s, i) => (
-                <tr key={s.id} className="border-b border-border/50">
-                  <td className="p-3 text-sm">{i + 1}</td>
-                  <td className="p-3 text-sm font-medium">{s.name}</td>
-                  <td className="p-3 text-sm text-muted-foreground">{s.class}</td>
-                  <td className="p-3 text-sm text-muted-foreground">{s.parentName}</td>
-                  <td className="p-3 text-sm font-mono text-muted-foreground">{s.studentEmail}</td>
+              {students.map((s) => (
+                <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="p-3 text-muted-foreground font-mono">{s.roll}</td>
+                  <td className="p-3">
+                    <Link
+                      to={`/teacher/enroll/${s.id}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {s.name}
+                    </Link>
+                  </td>
+                  <td className="p-2">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Link to={`/teacher/enroll/${s.id}`} aria-label="तपशील">
+                        <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {!isLoading && students.length === 0 && (
+            <p className="p-6 text-center text-sm text-muted-foreground">अजून कोणतेही विद्यार्थी नाहीत.</p>
+          )}
         </div>
       </div>
     </div>

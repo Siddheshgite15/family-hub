@@ -46,7 +46,15 @@ export default function TeacherHomework() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject || !title || !description || !className) {
-      toast.error('कृपया सर्व माहिती भरा');
+      toast.error('कृपया सर्व आवश्यक माहिती (*) भरा');
+      return;
+    }
+    if (title.length < 3) {
+      toast.error('शीर्षक किमान ३ वर्ण असणे आवश्यक');
+      return;
+    }
+    if (description.length < 10) {
+      toast.error('तपशील किमान १० वर्ण असणे आवश्यक');
       return;
     }
     try {
@@ -69,11 +77,12 @@ export default function TeacherHomework() {
       setSubject('');
       setTitle('');
       setDescription('');
-      setClassName('');
+      setClassName(user?.meta?.class || '');
       setDueDate('');
       toast.success('गृहपाठ यशस्वीरित्या दिला!');
     } catch (err) {
-      toast.error('गृहपाठ जतन करण्यात अडचण आली');
+      const message = err instanceof Error ? err.message : 'गृहपाठ जतन करण्यात अडचण आली';
+      toast.error(message);
       console.error('Homework creation error:', err);
     }
   };
@@ -129,11 +138,11 @@ export default function TeacherHomework() {
             </div>
             <div className="space-y-2">
               <Label>शीर्षक</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="गृहपाठाचे शीर्षक" required />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="गृहपाठाचे शीर्षक" required minLength={3} />
             </div>
             <div className="space-y-2">
               <Label>तपशील</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="गृहपाठाचे तपशीलवार वर्णन..." rows={3} required />
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="गृहपाठाचे तपशीलवार वर्णन..." rows={3} required minLength={10} />
             </div>
             <div className="space-y-2">
               <Label>मुदत</Label>

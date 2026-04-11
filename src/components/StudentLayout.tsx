@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Gamepad2,
   BarChart3,
+  CalendarDays,
   Bell,
   LogOut,
   Menu,
@@ -20,6 +21,7 @@ const studentLinks = [
   { title: "माझा डॅशबोर्ड", url: "/student", icon: LayoutDashboard },
   { title: "मजेशीर क्विझ", url: "/student/quizzes", icon: Gamepad2 },
   { title: "माझे गुण", url: "/student/scores", icon: BarChart3 },
+  { title: "उपस्थिती", url: "/student/attendance", icon: CalendarDays },
 ];
 
 export default function StudentLayout() {

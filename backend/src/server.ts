@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { connectDB } from "./utils/db";
+import { getCorsOriginList } from "./utils/corsOrigins";
 
 // Import routes
 import authRoutes from "./routes/authRoutes";
@@ -25,13 +26,7 @@ const PORT = 9000;
 
 // Middleware
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://10.204.104.102:5173",
-    "http://10.28.232.219:5173",
-    process.env.FRONTEND_URL || "http://localhost:5173",
-  ],
+  origin: getCorsOriginList(),
   credentials: true,
 }));
 app.use(express.json());

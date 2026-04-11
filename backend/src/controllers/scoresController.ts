@@ -88,9 +88,12 @@ export async function getScores(req: AuthRequest, res: Response): Promise<void> 
     }));
 
     res.json({ scores: items });
-  } catch (err) {
+  } catch (err: any) {
     console.error("GetScores error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to fetch scores",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -151,6 +154,9 @@ export async function addScore(req: AuthRequest, res: Response): Promise<void> {
       return;
     }
     console.error("AddScore error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      error: "Failed to create score",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }

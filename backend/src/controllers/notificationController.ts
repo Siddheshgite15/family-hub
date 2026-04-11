@@ -40,9 +40,12 @@ export async function getNotifications(req: AuthRequest, res: Response): Promise
         unreadCount,
       },
     });
-  } catch (error) {
-    console.error("GetNotifications error:", error);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err: any) {
+    console.error("GetNotifications error:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch notifications",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 

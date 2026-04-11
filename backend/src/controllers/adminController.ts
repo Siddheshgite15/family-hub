@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { User, Enquiry, Announcement, Notification } from "../models";
+import { User, Enquiry, Announcement, Notification, Student } from "../models";
 import { AuthRequest } from "../middleware/auth";
 import { hashPassword, toClientUser } from "../utils/auth";
 import {
@@ -11,10 +11,32 @@ import { z } from "zod";
 
 // ===================== SCHEMAS =====================
 
+const StudentDetailsSchema = z.object({
+  idNumber: z.string().optional(),
+  regNumber: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  rollNumber: z.string().min(1),
+  fatherName: z.string().optional(),
+  motherName: z.string().optional(),
+  motherTongue: z.string().optional(),
+  medium: z.string().optional(),
+  address: z.string().optional(),
+  mobileNumber: z.string().optional(),
+  udiseNumber: z.string().optional(),
+  className: z.string().min(1),
+  parentEmail: z.string().email().optional(),
+});
+
 const CreateUserSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   role: z.enum(["teacher", "student", "parent"]),
+  /** Sets user.meta.class for teachers */
+  assignedClass: z.string().min(1).optional(),
+  /** Mobile number for teacher/parent */
+  mobileNumber: z.string().optional(),
+  /** Full student details when role=student */
+  studentDetails: StudentDetailsSchema.optional(),
 });
 
 const UpdateUserSchema = z.object({
@@ -28,6 +50,7 @@ const CreateAnnouncementSchema = z.object({
   content: z.string().min(1),
   audience: z.enum(["all", "teachers", "students", "parents"]),
   priority: z.enum(["low", "medium", "high"]).optional(),
+  targetClasses: z.array(z.string().min(1)).optional(),
 });
 
 const QuerySchema = z.object({
@@ -120,7 +143,10 @@ export async function getAllUsers(req: AuthRequest, res: Response) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.errors });
     }
-    res.status(500).json({ error: "Failed to fetch users" });
+    res.status(500).json({ 
+      error: "Failed to fetch users",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
@@ -131,20 +157,78 @@ export async function createUser(req: AuthRequest, res: Response) {
   session.startTransaction();
 
   try {
-    const { name, email, role } = CreateUserSchema.parse(req.body);
+    const { name, email, role, assignedClass, mobileNumber, studentDetails } = CreateUserSchema.parse(req.body);
 
     const exists = await User.findOne({ email }).session(session);
     if (exists) {
+      await session.abortTransaction();
       return res.status(400).json({ error: "Email already exists" });
     }
 
     const tempPassword = generatePassword();
     const passwordHash = await hashPassword(tempPassword);
 
+    const meta = new Map<string, string>();
+    if (role === "teacher" && assignedClass) {
+      meta.set("class", assignedClass);
+    }
+    if (mobileNumber) {
+      meta.set("mobile", mobileNumber);
+    }
+
     const [user] = await User.create(
-      [{ name, email, passwordHash, role }],
+      [{ name, email, passwordHash, role, meta }],
       { session }
     );
+
+    // If creating a student, also create the Student document
+    if (role === "student" && studentDetails) {
+      // Resolve or create parent user
+      let parentUserId = user._id; // default if no parent email given
+      if (studentDetails.parentEmail) {
+        let parentUser = await User.findOne({ email: studentDetails.parentEmail }).session(session);
+        if (!parentUser) {
+          const parentPass = generatePassword();
+          const parentHash = await hashPassword(parentPass);
+          const [createdParent] = await User.create(
+            [{ name: studentDetails.fatherName || studentDetails.motherName || name + " (Parent)", email: studentDetails.parentEmail, passwordHash: parentHash, role: "parent" }],
+            { session }
+          );
+          parentUserId = createdParent._id;
+          // Send parent credentials
+          sendUserCreatedEmail(studentDetails.parentEmail!, (studentDetails.fatherName || name), "parent", parentPass).catch(console.error);
+        } else {
+          parentUserId = parentUser._id;
+        }
+      }
+
+      await Student.create(
+        [{
+          name,
+          roll: studentDetails.rollNumber,
+          className: studentDetails.className,
+          parentName: studentDetails.fatherName || studentDetails.motherName || "",
+          fatherName: studentDetails.fatherName || "",
+          motherName: studentDetails.motherName || "",
+          studentEmail: email,
+          parentEmail: studentDetails.parentEmail || "",
+          studentUserId: user._id,
+          parentUserId,
+          createdByTeacherId: req.user!._id,
+          dateOfBirth: studentDetails.dateOfBirth || "",
+          address: studentDetails.address || "",
+          parentPhone: studentDetails.mobileNumber || "",
+          notes: [
+            studentDetails.idNumber ? `ID: ${studentDetails.idNumber}` : "",
+            studentDetails.regNumber ? `Reg: ${studentDetails.regNumber}` : "",
+            studentDetails.udiseNumber ? `UDISE: ${studentDetails.udiseNumber}` : "",
+            studentDetails.motherTongue ? `Mother Tongue: ${studentDetails.motherTongue}` : "",
+            studentDetails.medium ? `Medium: ${studentDetails.medium}` : "",
+          ].filter(Boolean).join(" | "),
+        }],
+        { session }
+      );
+    }
 
     // Notification
     await Notification.create(
@@ -228,6 +312,17 @@ export async function deleteUser(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: "Cannot delete yourself" });
     }
 
+    const linkedStudent = await Student.findOne({
+      $or: [{ studentUserId: userId }, { parentUserId: userId }],
+    })
+      .select("_id")
+      .lean();
+    if (linkedStudent) {
+      return res.status(400).json({
+        error: "User is linked to a student record; remove or reassign the student first",
+      });
+    }
+
     const user = await User.findByIdAndDelete(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -241,9 +336,23 @@ export async function deleteUser(req: AuthRequest, res: Response) {
 
 // ===================== ANNOUNCEMENTS =====================
 
+export async function getAnnouncements(req: AuthRequest, res: Response) {
+  try {
+    const announcements = await Announcement.find()
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json({ announcements });
+  } catch {
+    res.status(500).json({ 
+      error: "Failed to fetch announcements",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
+  }
+}
+
 export async function createAnnouncement(req: AuthRequest, res: Response) {
   try {
-    const { title, content, audience, priority } =
+    const { title, content, audience, priority, targetClasses } =
       CreateAnnouncementSchema.parse(req.body);
 
     const announcement = await Announcement.create({
@@ -251,6 +360,7 @@ export async function createAnnouncement(req: AuthRequest, res: Response) {
       content,
       audience,
       priority: priority || "medium",
+      targetClasses: targetClasses ?? [],
       createdBy: req.user!._id,
     });
 
@@ -290,7 +400,10 @@ export async function getEnquiries(req: AuthRequest, res: Response) {
 
     res.json({ enquiries });
   } catch {
-    res.status(500).json({ error: "Failed to fetch enquiries" });
+    res.status(500).json({ 
+      error: "Failed to fetch enquiries",
+      details: process.env.NODE_ENV === 'development' ? err?.message : undefined
+    });
   }
 }
 
