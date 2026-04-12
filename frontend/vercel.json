@@ -5,13 +5,6 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "env": {
-    "VITE_API_URL": "@VITE_API_URL",
-    "VITE_SCHOOL_DISPLAY_NAME_MR": "@VITE_SCHOOL_DISPLAY_NAME_MR",
-    "VITE_SCHOOL_HERO_TITLE_BASE_MR": "@VITE_SCHOOL_HERO_TITLE_BASE_MR",
-    "VITE_SCHOOL_HERO_TITLE_ACCENT_MR": "@VITE_SCHOOL_HERO_TITLE_ACCENT_MR",
-    "VITE_SCHOOL_SHORT_NAME_MR": "@VITE_SCHOOL_SHORT_NAME_MR"
-  },
   "git": {
     "deploymentEnabled": {
       "main": true
